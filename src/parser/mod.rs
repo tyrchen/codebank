@@ -1,9 +1,15 @@
+mod formatters;
 mod lang;
+mod units;
 
-use crate::Result;
+use crate::{BankStrategy, Result};
 use std::path::{Path, PathBuf};
 
 pub use lang::{CParser, PythonParser, RustParser, TypeScriptParser};
+
+pub trait Formatter {
+    fn format(&self, strategy: BankStrategy) -> Result<String>;
+}
 /// Base trait for all code units in the intermediate representation
 pub trait CodeUnit {
     /// Get the name of the code unit
@@ -23,9 +29,10 @@ pub trait CodeUnit {
 }
 
 /// Represents visibility levels for code elements
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Visibility {
     /// Public visibility (accessible from outside the module)
+    #[default]
     Public,
 
     /// Private visibility (accessible only within the module)
@@ -48,6 +55,10 @@ pub enum LanguageType {
     Rust,
     /// Python language
     Python,
+    /// TypeScript language
+    TypeScript,
+    /// C language
+    C,
     /// Unknown language (used for unsupported extensions)
     Unknown,
 }
@@ -59,10 +70,14 @@ pub trait LanguageParser {
 }
 
 /// Represents a file in the code
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FileUnit {
     /// The path to the file
     pub path: PathBuf,
+
+    pub document: Option<String>,
+    /// The declares in the file, e.g. imports, use statements, mod statements, c includes, python/js imports, etc.
+    pub declares: Vec<DeclareStatements>,
 
     /// The modules contained in the file
     pub modules: Vec<ModuleUnit>,
@@ -83,11 +98,32 @@ pub struct FileUnit {
     pub source: Option<String>,
 }
 
+#[derive(Debug, Default)]
+pub struct DeclareStatements {
+    pub source: String,
+    pub kind: DeclareKind,
+}
+
+#[derive(Debug, Default)]
+pub enum DeclareKind {
+    #[default]
+    Import,
+    Use,
+    Mod,
+    Other(String),
+}
+
 /// Represents a module in the code
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ModuleUnit {
     /// The name of the module
     pub name: String,
+
+    /// The document for the module
+    pub document: Option<String>,
+
+    /// The declares in the module, e.g. imports, use statements, mod statements, c includes, python/js imports, etc.
+    pub declares: Vec<DeclareStatements>,
 
     /// The visibility of the module
     pub visibility: Visibility,
@@ -112,10 +148,13 @@ pub struct ModuleUnit {
 
     /// Source code of the module declaration
     pub source: Option<String>,
+
+    /// Attributes applied to the module
+    pub attributes: Vec<String>,
 }
 
 /// Represents a function or method in the code
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FunctionUnit {
     /// The name of the function
     pub name: String,
@@ -134,10 +173,19 @@ pub struct FunctionUnit {
 
     /// The source code of the function
     pub source: Option<String>,
+
+    /// The function signature (without body)
+    pub signature: Option<String>,
+
+    /// The function body
+    pub body: Option<String>,
+
+    /// Attributes applied to the function
+    pub attributes: Vec<String>,
 }
 
 /// Represents a struct or class in the code
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct StructUnit {
     /// The name of the struct
     pub name: String,
@@ -156,10 +204,13 @@ pub struct StructUnit {
 
     /// The source code of the struct
     pub source: Option<String>,
+
+    /// Attributes applied to the struct
+    pub attributes: Vec<String>,
 }
 
 /// Represents a field in a struct
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FieldUnit {
     /// The name of the field
     pub name: String,
@@ -172,10 +223,13 @@ pub struct FieldUnit {
 
     /// The documentation for the field
     pub documentation: Option<String>,
+
+    /// Attributes applied to the field
+    pub attributes: Vec<String>,
 }
 
 /// Represents a trait or interface in the code
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TraitUnit {
     /// The name of the trait
     pub name: String,
@@ -191,10 +245,13 @@ pub struct TraitUnit {
 
     /// The source code of the trait
     pub source: Option<String>,
+
+    /// Attributes applied to the trait
+    pub attributes: Vec<String>,
 }
 
-/// Represents an implementation block in the code
-#[derive(Debug)]
+/// Represents an implementation block in the code, not all languages need this
+#[derive(Debug, Default)]
 pub struct ImplUnit {
     /// The name of the type being implemented
     pub target_type: String,
@@ -210,10 +267,13 @@ pub struct ImplUnit {
 
     /// The source code of the implementation block
     pub source: Option<String>,
+
+    /// Attributes applied to the implementation
+    pub attributes: Vec<String>,
 }
 
 /// Represents a parameter in a function
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ParameterUnit {
     /// The name of the parameter
     pub name: String,

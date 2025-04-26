@@ -145,3 +145,13 @@ where
         value.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_public_function() {
+        assert_eq!(public_function(), "Hello, world!");
+    }
+}

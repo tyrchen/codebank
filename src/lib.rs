@@ -1,8 +1,10 @@
+mod bank;
 mod error;
 mod parser;
 
 use std::path::Path;
 
+pub use bank::CodeBank;
 pub use error::{Error, Result};
 pub use parser::*;
 
