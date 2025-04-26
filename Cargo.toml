@@ -19,6 +19,18 @@ anyhow = "1.0"
 thiserror = "2.0"
 walkdir = "2.3"
 clap = { version = "4.0", features = ["derive"] }
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", features = [
+  "server",
+  "transport-sse-server",
+  "transport-io",
+] }
+serde = { version = "1.0", features = ["derive"] }
+schemars = "0.8"
+tokio = { version = "1.0", features = ["full"] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum = "0.8"
 
 [dev-dependencies]
 tempfile = "3.3"
@@ -26,3 +38,7 @@ tempfile = "3.3"
 [[bin]]
 name = "cb"
 path = "src/bin/codebank.rs"
+
+[[bin]]
+name = "cb-mcp"
+path = "src/bin/mcp.rs"

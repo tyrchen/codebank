@@ -15,3 +15,5 @@ Please refactor code based on @0004-simplify.md spec. The unit data structure in
 no-tests formatter should include all declare / struct / trait / impl / function / etc., it only removes the test module and test functions / cases. Please fix it and add proper unit test case to cover that.
 
 if impl has empty function list, just return empty string. Also put a test case for this (e.g. impl contains all private function, under summary strategy, it should return empty string.
+
+please implement based on the spec @0005-mcp.md.

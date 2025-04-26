@@ -1,5 +1,6 @@
 mod bank;
 mod error;
+pub mod mcp;
 mod parser;
 
 use std::path::Path;
