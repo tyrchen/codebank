@@ -1,0 +1,26 @@
+[package]
+name = "codebank"
+version = "0.1.0"
+edition = "2021"
+description = "A tool to concatenate code from multiple files into a single markdown file"
+authors = ["Code Bank Authors"]
+license = "MIT"
+repository = "https://github.com/username/codebank"
+keywords = ["code", "documentation", "markdown", "generator"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+tree-sitter = "0.23"
+tree-sitter-rust = "0.23"
+tree-sitter-python = "0.23"
+anyhow = "1.0"
+thiserror = "2.0"
+walkdir = "2.3"
+clap = { version = "4.0", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3.3"
+
+[[bin]]
+name = "cb"
+path = "src/bin/codebank.rs"
