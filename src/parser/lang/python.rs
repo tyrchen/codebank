@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::{Error, PythonParser, Result};
 use tree_sitter::Parser;
 
@@ -9,5 +11,19 @@ impl PythonParser {
             .set_language(&language.into())
             .map_err(|e| Error::UnsupportedLanguage(e.to_string()))?;
         Ok(Self { parser })
+    }
+}
+
+impl Deref for PythonParser {
+    type Target = Parser;
+
+    fn deref(&self) -> &Self::Target {
+        &self.parser
+    }
+}
+
+impl DerefMut for PythonParser {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.parser
     }
 }

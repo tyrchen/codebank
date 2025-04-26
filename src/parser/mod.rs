@@ -3,7 +3,7 @@ mod lang;
 use crate::Result;
 use std::path::{Path, PathBuf};
 
-pub use lang::{PythonParser, RustParser};
+pub use lang::{CParser, PythonParser, RustParser, TypeScriptParser};
 /// Base trait for all code units in the intermediate representation
 pub trait CodeUnit {
     /// Get the name of the code unit
