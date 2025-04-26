@@ -612,6 +612,13 @@ impl Formatter for ImplUnit {
                     output.push_str(&format!("{}\n", attr));
                 }
 
+                // Check if this is a trait implementation (contains 'impl SomeTrait for')
+                let is_trait_impl = if let Some(source) = &self.source {
+                    source.contains(" for ") && source.contains("impl ")
+                } else {
+                    false
+                };
+
                 // Try to generate a reasonable impl block even if we don't have source
                 // We'll have to infer the target type from the source or use placeholder
                 if let Some(source) = &self.source {
@@ -628,23 +635,72 @@ impl Formatter for ImplUnit {
                     output.push_str("impl /* unnamed type */ {");
                 }
 
-                // Add methods
+                // Add methods - handle trait implementations differently
                 let methods_to_include = match strategy {
                     BankStrategy::NoTests => self
                         .methods
                         .iter()
                         .filter(|m| !m.attributes.iter().any(|attr| attr == "#[test]"))
                         .collect::<Vec<_>>(),
-                    BankStrategy::Summary => self
-                        .methods
-                        .iter()
-                        .filter(|m| matches!(m.visibility, Visibility::Public))
-                        .collect::<Vec<_>>(),
+                    BankStrategy::Summary => {
+                        // For trait implementations, include all methods regardless of visibility
+                        // For regular impls, only include public methods
+                        if is_trait_impl {
+                            self.methods
+                                .iter()
+                                .filter(|m| !m.attributes.iter().any(|attr| attr == "#[test]"))
+                                .collect::<Vec<_>>()
+                        } else {
+                            self.methods
+                                .iter()
+                                .filter(|m| matches!(m.visibility, Visibility::Public))
+                                .collect::<Vec<_>>()
+                        }
+                    }
                     _ => unreachable!(),
                 };
 
                 for method in methods_to_include {
-                    let method_formatted = method.format(strategy.clone())?;
+                    // Standard method formatting
+                    let mut method_formatted = method.format(strategy.clone())?;
+
+                    // For trait implementations in Summary mode, replace empty results
+                    // with a formatted version that treats the method as public
+                    if is_trait_impl
+                        && strategy == BankStrategy::Summary
+                        && method_formatted.is_empty()
+                    {
+                        // Format with documentation and signature but indicate it's a trait method
+                        let mut public_method_str = String::new();
+
+                        // Add documentation
+                        if let Some(doc) = &method.documentation {
+                            for line in doc.lines() {
+                                public_method_str.push_str(&format!("/// {}\n", line));
+                            }
+                        }
+
+                        // Add attributes
+                        for attr in &method.attributes {
+                            public_method_str.push_str(&format!("{}\n", attr));
+                        }
+
+                        // Add function signature with trait implementation marker
+                        if let Some(sig) = &method.signature {
+                            public_method_str.push_str(sig);
+                            public_method_str.push_str(" { ... }");
+                        } else if let Some(source) = &method.source {
+                            if let Some(idx) = source.find('{') {
+                                public_method_str.push_str(source[0..idx].trim());
+                                public_method_str.push_str(" { ... }");
+                            } else {
+                                public_method_str.push_str(source);
+                            }
+                        }
+
+                        method_formatted = public_method_str;
+                    }
+
                     if !method_formatted.is_empty() {
                         output.push_str("\n    ");
                         output.push_str(&method_formatted.replace("\n", "\n    "));
@@ -754,6 +810,28 @@ mod tests {
             submodules: Vec::new(),
             declares,
             source: Some(format!("mod {} {{ /* module contents */ }}", name)),
+        }
+    }
+
+    // Helper to create a test impl block, with option for trait implementation
+    fn create_test_impl(is_trait_impl: bool) -> ImplUnit {
+        let methods = vec![
+            // Add both public and private methods
+            create_test_function("public_method", true, false),
+            create_test_function("private_method", false, false),
+        ];
+
+        let source = if is_trait_impl {
+            Some("impl SomeTrait for SomeStruct { /* impl body */ }".to_string())
+        } else {
+            Some("impl SomeStruct { /* impl body */ }".to_string())
+        };
+
+        ImplUnit {
+            attributes: Vec::new(),
+            documentation: Some("Documentation for implementation".to_string()),
+            methods,
+            source,
         }
     }
 
@@ -871,6 +949,44 @@ mod tests {
         // Should include both public and private methods
         assert!(formatted.contains("fn teststruct_method()")); // public method
         assert!(formatted.contains("fn teststruct_private_method()")); // private method
+    }
+
+    #[test]
+    fn test_regular_impl_formatter_summary() {
+        // Regular (non-trait) implementation
+        let impl_unit = create_test_impl(false);
+        let formatted = impl_unit.format(BankStrategy::Summary).unwrap();
+
+        // Only public methods should be included in regular impls
+        assert!(formatted.contains("impl SomeStruct"));
+        assert!(formatted.contains("fn public_method"));
+        assert!(!formatted.contains("fn private_method"));
+    }
+
+    #[test]
+    fn test_trait_impl_formatter_summary() {
+        // Trait implementation
+        let impl_unit = create_test_impl(true);
+        let formatted = impl_unit.format(BankStrategy::Summary).unwrap();
+
+        // Both public and private methods should be included in trait impls
+        assert!(formatted.contains("impl SomeTrait for SomeStruct"));
+        assert!(formatted.contains("fn public_method"));
+        assert!(formatted.contains("fn private_method"));
+    }
+
+    #[test]
+    fn test_impl_formatter_no_tests() {
+        // Both regular and trait implementation should include all non-test methods in NoTests mode
+        let regular_impl = create_test_impl(false);
+        let formatted = regular_impl.format(BankStrategy::NoTests).unwrap();
+        assert!(formatted.contains("fn public_method"));
+        assert!(formatted.contains("fn private_method"));
+
+        let trait_impl = create_test_impl(true);
+        let formatted = trait_impl.format(BankStrategy::NoTests).unwrap();
+        assert!(formatted.contains("fn public_method"));
+        assert!(formatted.contains("fn private_method"));
     }
 
     #[test]
