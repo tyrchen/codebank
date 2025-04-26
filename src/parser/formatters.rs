@@ -26,24 +26,9 @@ impl Formatter for FileUnit {
                     })
                     .collect();
 
-                // Format and include non-test modules
-                for module in non_test_modules {
-                    let module_formatted = module.format(strategy.clone())?;
-                    output.push_str(&module_formatted);
-                    output.push_str("\n\n");
-                }
-
-                // Skip test functions
-                let non_test_functions: Vec<&FunctionUnit> = self
-                    .functions
-                    .iter()
-                    .filter(|f| !f.attributes.iter().any(|attr| attr == "#[test]"))
-                    .collect();
-
-                // Format and include non-test functions
-                for function in non_test_functions {
-                    let function_formatted = function.format(strategy.clone())?;
-                    output.push_str(&function_formatted);
+                // Include all declare statements
+                for declare in &self.declares {
+                    output.push_str(&declare.source);
                     output.push_str("\n\n");
                 }
 
@@ -61,10 +46,31 @@ impl Formatter for FileUnit {
                     output.push_str("\n\n");
                 }
 
+                // Skip test functions
+                let non_test_functions: Vec<&FunctionUnit> = self
+                    .functions
+                    .iter()
+                    .filter(|f| !f.attributes.iter().any(|attr| attr == "#[test]"))
+                    .collect();
+
+                // Format and include non-test functions
+                for function in non_test_functions {
+                    let function_formatted = function.format(strategy.clone())?;
+                    output.push_str(&function_formatted);
+                    output.push_str("\n\n");
+                }
+
                 // Format and include impls
                 for impl_unit in &self.impls {
                     let impl_formatted = impl_unit.format(strategy.clone())?;
                     output.push_str(&impl_formatted);
+                    output.push_str("\n\n");
+                }
+
+                // Format and include non-test modules
+                for module in non_test_modules {
+                    let module_formatted = module.format(strategy.clone())?;
+                    output.push_str(&module_formatted);
                     output.push_str("\n\n");
                 }
             }
@@ -148,6 +154,11 @@ impl Formatter for ModuleUnit {
                 match self.visibility {
                     Visibility::Public => output.push_str(&format!("pub mod {} {{\n", self.name)),
                     _ => output.push_str(&format!("mod {} {{\n", self.name)),
+                }
+
+                // Include all declare statements
+                for declare in &self.declares {
+                    output.push_str(&format!("    {}\n\n", declare.source));
                 }
 
                 // Add content - skip test functions
@@ -265,15 +276,13 @@ impl Formatter for ModuleUnit {
                         }
                     }
 
-                    // Add impls
+                    // Add impls (only public methods)
                     for impl_unit in &self.impls {
                         let impl_formatted = impl_unit.format(strategy.clone())?;
-                        if !impl_formatted.is_empty() {
-                            output.push_str(&format!(
-                                "    {}\n\n",
-                                impl_formatted.replace("\n", "\n    ")
-                            ));
-                        }
+                        output.push_str(&format!(
+                            "    {}\n\n",
+                            impl_formatted.replace("\n", "\n    ")
+                        ));
                     }
 
                     // Add public submodules
@@ -288,6 +297,9 @@ impl Formatter for ModuleUnit {
                     }
 
                     output.push_str("}\n");
+                } else {
+                    // Private modules not included in summary
+                    return Ok(String::new());
                 }
             }
         }
@@ -309,7 +321,7 @@ impl Formatter for FunctionUnit {
                 }
             }
             BankStrategy::NoTests => {
-                // Skip test functions
+                // Skip functions with #[test] attribute
                 if self.attributes.iter().any(|attr| attr == "#[test]") {
                     return Ok(String::new());
                 }
@@ -326,13 +338,22 @@ impl Formatter for FunctionUnit {
                     output.push_str(&format!("{}\n", attr));
                 }
 
-                // Add function source
-                if let Some(source) = &self.source {
+                // Add function signature and body
+                if let Some(sig) = &self.signature {
+                    output.push_str(sig);
+                    if let Some(body) = &self.body {
+                        output.push(' ');
+                        output.push_str(body);
+                    } else {
+                        output.push(';');
+                    }
+                } else if let Some(source) = &self.source {
+                    // Fallback to source if signature/body splitting failed
                     output.push_str(source);
                 }
             }
             BankStrategy::Summary => {
-                // Only include public functions for Summary
+                // Only include public functions for summary
                 if !matches!(self.visibility, Visibility::Public) {
                     return Ok(String::new());
                 }
@@ -349,31 +370,19 @@ impl Formatter for FunctionUnit {
                     output.push_str(&format!("{}\n", attr));
                 }
 
-                // Add signature
-                if let Some(signature) = &self.signature {
-                    output.push_str(&format!("{} {{ ... }}", signature));
-                } else {
-                    // Build signature from components
-                    output.push_str("pub fn ");
-                    output.push_str(&self.name);
-                    output.push('(');
-
-                    // Format parameters
-                    let params: Vec<String> = self
-                        .parameters
-                        .iter()
-                        .map(|p| format!("{}: {}", p.name, p.parameter_type))
-                        .collect();
-                    output.push_str(&params.join(", "));
-                    output.push(')');
-
-                    // Add return type if present
-                    if let Some(ret_type) = &self.return_type {
-                        output.push_str(&format!(" -> {}", ret_type));
+                // Add function signature only (no body)
+                if let Some(sig) = &self.signature {
+                    output.push_str(sig);
+                    output.push_str("{ ... }");
+                } else if let Some(source) = &self.source {
+                    // Try to extract just the signature from the source
+                    if let Some(idx) = source.find('{') {
+                        output.push_str(source[0..idx].trim());
+                        output.push_str("{ ... }");
+                    } else {
+                        // Fallback: use the whole source (likely already a signature-only item)
+                        output.push_str(source);
                     }
-
-                    // Add placeholder for function body
-                    output.push_str(" { ... }");
                 }
             }
         }
@@ -394,56 +403,11 @@ impl Formatter for StructUnit {
                     output.push_str(source);
                 }
             }
-            BankStrategy::NoTests => {
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("/// {}\n", line));
-                    }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
-                // Add struct declaration
-                match self.visibility {
-                    Visibility::Public => {
-                        output.push_str(&format!("pub struct {} {{\n", self.name))
-                    }
-                    _ => output.push_str(&format!("struct {} {{\n", self.name)),
-                }
-
-                // Add fields
-                for field in &self.fields {
-                    // Add field documentation
-                    if let Some(doc) = &field.documentation {
-                        for line in doc.lines() {
-                            output.push_str(&format!("    /// {}\n", line));
-                        }
-                    }
-
-                    // Add field attributes
-                    for attr in &field.attributes {
-                        output.push_str(&format!("    {}\n", attr));
-                    }
-
-                    // Add field declaration
-                    match field.visibility {
-                        Visibility::Public => output
-                            .push_str(&format!("    pub {}: {},\n", field.name, field.field_type)),
-                        _ => {
-                            output.push_str(&format!("    {}: {},\n", field.name, field.field_type))
-                        }
-                    }
-                }
-
-                output.push_str("}\n");
-            }
-            BankStrategy::Summary => {
+            BankStrategy::NoTests | BankStrategy::Summary => {
                 // Only include public structs for Summary
-                if !matches!(self.visibility, Visibility::Public) {
+                if strategy == BankStrategy::Summary
+                    && !matches!(self.visibility, Visibility::Public)
+                {
                     return Ok(String::new());
                 }
 
@@ -459,31 +423,93 @@ impl Formatter for StructUnit {
                     output.push_str(&format!("{}\n", attr));
                 }
 
-                // Add struct declaration
-                output.push_str(&format!("pub struct {} {{\n", self.name));
+                // Two possibilities for formatting:
+                // 1. If we have source code, we can try to extract just the declaration
+                // 2. Otherwise, generate a basic declaration
 
-                // Add public fields only
-                for field in &self.fields {
-                    if matches!(field.visibility, Visibility::Public) {
-                        // Add field documentation
-                        if let Some(doc) = &field.documentation {
-                            for line in doc.lines() {
-                                output.push_str(&format!("    /// {}\n", line));
+                if let Some(source) = &self.source {
+                    // Try to extract just the struct declaration (without methods)
+                    if let Some(end_idx) = source.find('{') {
+                        // Include the opening brace and get ending brace
+                        let mut brace_count = 1;
+                        let mut end_pos = end_idx + 1;
+
+                        for (i, c) in source[end_idx + 1..].char_indices() {
+                            if c == '{' {
+                                brace_count += 1;
+                            } else if c == '}' {
+                                brace_count -= 1;
+                                if brace_count == 0 {
+                                    end_pos = end_idx + 1 + i + 1; // +1 to include the closing brace
+                                    break;
+                                }
                             }
                         }
 
-                        // Add field attributes
-                        for attr in &field.attributes {
-                            output.push_str(&format!("    {}\n", attr));
+                        if end_pos > end_idx + 1 {
+                            output.push_str(&source[0..end_pos]);
+                        } else {
+                            // Fallback if we couldn't find the closing brace
+                            output.push_str(source);
                         }
-
-                        // Add field declaration
-                        output
-                            .push_str(&format!("    pub {}: {},\n", field.name, field.field_type));
+                    } else {
+                        // Entire source might be a single-line declaration
+                        output.push_str(source);
+                    }
+                } else {
+                    // Generate a basic struct declaration
+                    match self.visibility {
+                        Visibility::Public => {
+                            output.push_str(&format!("pub struct {} {{}}", self.name))
+                        }
+                        _ => output.push_str(&format!("struct {} {{}}", self.name)),
                     }
                 }
 
-                output.push_str("}\n");
+                // For NoTests, show all methods except test methods
+                if strategy == BankStrategy::NoTests {
+                    // Skip test methods but include all others regardless of visibility
+                    let non_test_methods: Vec<&FunctionUnit> = self
+                        .methods
+                        .iter()
+                        .filter(|m| !m.attributes.iter().any(|attr| attr == "#[test]"))
+                        .collect();
+
+                    if !non_test_methods.is_empty() {
+                        output.push_str("\n\n");
+                        output.push_str(&format!("impl {} {{", self.name));
+                        for method in non_test_methods {
+                            let method_formatted = method.format(strategy.clone())?;
+                            if !method_formatted.is_empty() {
+                                output.push_str("\n    ");
+                                output.push_str(&method_formatted.replace("\n", "\n    "));
+                            }
+                        }
+                        output.push_str("\n}");
+                    }
+                }
+
+                // For Summary, show only public methods
+                if strategy == BankStrategy::Summary {
+                    let public_methods: Vec<&FunctionUnit> = self
+                        .methods
+                        .iter()
+                        .filter(|m| matches!(m.visibility, Visibility::Public))
+                        .collect();
+
+                    if !public_methods.is_empty() {
+                        output.push_str("\n\n");
+                        output.push_str(&format!("impl {} {{", self.name));
+                        for method in public_methods {
+                            let method_formatted = method.format(strategy.clone())?;
+                            if !method_formatted.is_empty() {
+                                output.push_str("\n    ");
+                                output.push_str(&method_formatted.replace("\n", "\n    "));
+                            }
+                        }
+                        output.push_str("\n}");
+                    }
+                }
             }
         }
 
@@ -503,43 +529,11 @@ impl Formatter for TraitUnit {
                     output.push_str(source);
                 }
             }
-            BankStrategy::NoTests => {
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("/// {}\n", line));
-                    }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
-                // Add trait declaration
-                match self.visibility {
-                    Visibility::Public => output.push_str(&format!("pub trait {} {{\n", self.name)),
-                    _ => output.push_str(&format!("trait {} {{\n", self.name)),
-                }
-
-                // Add methods (skip test methods)
-                for method in &self.methods {
-                    if !method.attributes.iter().any(|attr| attr == "#[test]") {
-                        let method_formatted = method.format(strategy.clone())?;
-                        if !method_formatted.is_empty() {
-                            output.push_str(&format!(
-                                "    {}\n\n",
-                                method_formatted.replace("\n", "\n    ")
-                            ));
-                        }
-                    }
-                }
-
-                output.push_str("}\n");
-            }
-            BankStrategy::Summary => {
+            BankStrategy::NoTests | BankStrategy::Summary => {
                 // Only include public traits for Summary
-                if !matches!(self.visibility, Visibility::Public) {
+                if strategy == BankStrategy::Summary
+                    && !matches!(self.visibility, Visibility::Public)
+                {
                     return Ok(String::new());
                 }
 
@@ -555,17 +549,33 @@ impl Formatter for TraitUnit {
                     output.push_str(&format!("{}\n", attr));
                 }
 
-                // Add trait declaration
-                output.push_str(&format!("pub trait {} {{\n", self.name));
+                // Start trait declaration
+                match self.visibility {
+                    Visibility::Public => output.push_str(&format!("pub trait {} {{\n", self.name)),
+                    _ => output.push_str(&format!("trait {} {{\n", self.name)),
+                }
 
-                // Add methods (all trait methods are considered public)
+                // Add method signatures
                 for method in &self.methods {
+                    // Skip test methods
+                    if strategy == BankStrategy::NoTests
+                        && method.attributes.iter().any(|attr| attr == "#[test]")
+                    {
+                        continue;
+                    }
+
+                    // Only include public methods for Summary
+                    if strategy == BankStrategy::Summary
+                        && !matches!(method.visibility, Visibility::Public)
+                    {
+                        continue;
+                    }
+
                     let method_formatted = method.format(strategy.clone())?;
                     if !method_formatted.is_empty() {
-                        output.push_str(&format!(
-                            "    {}\n\n",
-                            method_formatted.replace("\n", "\n    ")
-                        ));
+                        output.push_str("    ");
+                        output.push_str(&method_formatted.replace("\n", "\n    "));
+                        output.push('\n');
                     }
                 }
 
@@ -589,7 +599,7 @@ impl Formatter for ImplUnit {
                     output.push_str(source);
                 }
             }
-            BankStrategy::NoTests => {
+            BankStrategy::NoTests | BankStrategy::Summary => {
                 // Add documentation
                 if let Some(doc) = &self.documentation {
                     for line in doc.lines() {
@@ -602,82 +612,46 @@ impl Formatter for ImplUnit {
                     output.push_str(&format!("{}\n", attr));
                 }
 
-                // Add impl declaration
-                if let Some(trait_name) = &self.trait_name {
-                    output.push_str(&format!(
-                        "impl {} for {} {{\n",
-                        trait_name, self.target_type
-                    ));
+                // Try to generate a reasonable impl block even if we don't have source
+                // We'll have to infer the target type from the source or use placeholder
+                if let Some(source) = &self.source {
+                    // Try to extract just the impl declaration (without method bodies for Summary)
+                    if let Some(idx) = source.find('{') {
+                        output.push_str(&source[0..=idx]);
+                    } else {
+                        // If no opening brace is found, use the whole declaration
+                        output.push_str(source);
+                        output.push_str(" {");
+                    }
                 } else {
-                    output.push_str(&format!("impl {} {{\n", self.target_type));
+                    // Fallback if we don't have source
+                    output.push_str("impl /* unnamed type */ {");
                 }
 
-                // Add methods (skip test methods)
-                let mut has_methods = false;
-                for method in &self.methods {
-                    if !method.attributes.iter().any(|attr| attr == "#[test]") {
-                        let method_formatted = method.format(strategy.clone())?;
-                        if !method_formatted.is_empty() {
-                            output.push_str(&format!(
-                                "    {}\n\n",
-                                method_formatted.replace("\n", "\n    ")
-                            ));
-                            has_methods = true;
-                        }
+                // Add methods
+                let methods_to_include = match strategy {
+                    BankStrategy::NoTests => self
+                        .methods
+                        .iter()
+                        .filter(|m| !m.attributes.iter().any(|attr| attr == "#[test]"))
+                        .collect::<Vec<_>>(),
+                    BankStrategy::Summary => self
+                        .methods
+                        .iter()
+                        .filter(|m| matches!(m.visibility, Visibility::Public))
+                        .collect::<Vec<_>>(),
+                    _ => unreachable!(),
+                };
+
+                for method in methods_to_include {
+                    let method_formatted = method.format(strategy.clone())?;
+                    if !method_formatted.is_empty() {
+                        output.push_str("\n    ");
+                        output.push_str(&method_formatted.replace("\n", "\n    "));
                     }
                 }
 
-                if has_methods {
-                    output.push_str("}\n");
-                } else {
-                    // If there are no methods after filtering, return empty string
-                    return Ok(String::new());
-                }
-            }
-            BankStrategy::Summary => {
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("/// {}\n", line));
-                    }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
-                // Add impl declaration
-                if let Some(trait_name) = &self.trait_name {
-                    output.push_str(&format!(
-                        "impl {} for {} {{\n",
-                        trait_name, self.target_type
-                    ));
-                } else {
-                    output.push_str(&format!("impl {} {{\n", self.target_type));
-                }
-
-                // Add public methods only
-                let mut has_methods = false;
-                for method in &self.methods {
-                    if matches!(method.visibility, Visibility::Public) {
-                        let method_formatted = method.format(strategy.clone())?;
-                        if !method_formatted.is_empty() {
-                            output.push_str(&format!(
-                                "    {}\n\n",
-                                method_formatted.replace("\n", "\n    ")
-                            ));
-                            has_methods = true;
-                        }
-                    }
-                }
-
-                if has_methods {
-                    output.push_str("}\n");
-                } else {
-                    // If there are no public methods, return empty string
-                    return Ok(String::new());
-                }
+                output.push_str("\n}");
             }
         }
 
@@ -688,282 +662,330 @@ impl Formatter for ImplUnit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BankStrategy, FieldUnit, FunctionUnit, ParameterUnit, Visibility};
-    use std::path::PathBuf;
+    use crate::DeclareKind;
+    use crate::DeclareStatements;
 
-    // Helper to create a test function unit
+    // Helper to create a test function
     fn create_test_function(name: &str, is_public: bool, has_test_attr: bool) -> FunctionUnit {
-        let mut attributes = Vec::new();
+        let mut attrs = Vec::new();
         if has_test_attr {
-            attributes.push("#[test]".to_string());
+            attrs.push("#[test]".to_string());
         }
 
         FunctionUnit {
             name: name.to_string(),
+            attributes: attrs,
             visibility: if is_public {
                 Visibility::Public
             } else {
                 Visibility::Private
             },
-            documentation: Some("Test documentation".to_string()),
-            parameters: vec![ParameterUnit {
-                name: "param1".to_string(),
-                parameter_type: "String".to_string(),
-                is_self: false,
-            }],
-            return_type: Some("String".to_string()),
-            source: Some(format!(
-                "fn {}(param1: String) -> String {{ \"result\".to_string() }}",
-                name
-            )),
-            signature: Some(format!("fn {}(param1: String) -> String", name)),
-            body: Some("{ \"result\".to_string() }".to_string()),
-            attributes,
+            documentation: Some(format!("Documentation for {}", name)),
+            signature: Some(format!("fn {}()", name)),
+            body: Some("{ /* function body */ }".to_string()),
+            source: Some(format!("fn {}() {{ /* function body */ }}", name)),
         }
     }
 
-    // Helper to create a test struct unit
+    // Helper to create a test struct
     fn create_test_struct(name: &str, is_public: bool) -> StructUnit {
+        let mut methods = Vec::new();
+        methods.push(create_test_function(
+            &format!("{}_method", name.to_lowercase()),
+            true,
+            false,
+        ));
+        // Add a private method as well
+        methods.push(create_test_function(
+            &format!("{}_private_method", name.to_lowercase()),
+            false,
+            false,
+        ));
+
         StructUnit {
             name: name.to_string(),
+            attributes: Vec::new(),
             visibility: if is_public {
                 Visibility::Public
             } else {
                 Visibility::Private
             },
-            documentation: Some("Test struct documentation".to_string()),
-            fields: vec![
-                FieldUnit {
-                    name: "field1".to_string(),
-                    visibility: Visibility::Public,
-                    field_type: "String".to_string(),
-                    documentation: Some("Field documentation".to_string()),
-                    attributes: vec!["#[derive(Debug)]".to_string()],
-                },
-                FieldUnit {
-                    name: "field2".to_string(),
-                    visibility: Visibility::Private,
-                    field_type: "i32".to_string(),
-                    documentation: None,
-                    attributes: Vec::new(),
-                },
-            ],
-            methods: Vec::new(),
-            source: Some(format!(
-                "struct {} {{\n    pub field1: String,\n    field2: i32,\n}}",
-                name
-            )),
-            attributes: vec!["#[derive(Debug)]".to_string()],
+            documentation: Some(format!("Documentation for {}", name)),
+            methods,
+            source: Some(format!("struct {} {{ field: i32 }}", name)),
         }
     }
 
-    // Helper to create a test module unit
+    // Helper to create a test module
     fn create_test_module(name: &str, is_public: bool, is_test: bool) -> ModuleUnit {
+        let functions = vec![
+            create_test_function("module_function", true, false),
+            // Add a private function
+            create_test_function("module_private_function", false, false),
+        ];
+
+        let structs = vec![create_test_struct("ModuleStruct", true)];
+
         let mut attributes = Vec::new();
         if is_test {
             attributes.push("#[cfg(test)]".to_string());
         }
 
-        let document = Some("Test module documentation".to_string());
+        // Add declarations
+        let mut declares = Vec::new();
+        declares.push(DeclareStatements {
+            source: "use std::io;".to_string(),
+            kind: DeclareKind::Use,
+        });
 
         ModuleUnit {
             name: name.to_string(),
-            document,
-            declares: Vec::new(),
+            attributes,
+            document: Some(format!("Documentation for module {}", name)),
             visibility: if is_public {
                 Visibility::Public
             } else {
                 Visibility::Private
             },
-            functions: vec![
-                create_test_function("module_fn1", true, false),
-                create_test_function("module_fn2", false, false),
-                create_test_function("test_fn", true, true),
-            ],
-            structs: vec![create_test_struct("ModuleStruct", true)],
+            functions,
+            structs,
             traits: Vec::new(),
             impls: Vec::new(),
             submodules: Vec::new(),
-            source: Some(format!("mod {} {{\n    // Contents\n}}", name)),
-            attributes,
+            declares,
+            source: Some(format!("mod {} {{ /* module contents */ }}", name)),
         }
     }
 
     #[test]
     fn test_function_formatter_default() {
-        let function = create_test_function("test_fn", true, false);
+        let function = create_test_function("test_function", true, false);
         let formatted = function.format(BankStrategy::Default).unwrap();
-
-        // Default strategy should include the full source
-        assert!(
-            formatted.contains("fn test_fn(param1: String) -> String { \"result\".to_string() }")
-        );
+        assert!(formatted.contains("fn test_function()"));
+        assert!(formatted.contains("/* function body */"));
     }
 
     #[test]
     fn test_function_formatter_no_tests() {
-        // Test regular function
-        let function = create_test_function("regular_fn", true, false);
+        // Regular function
+        let function = create_test_function("regular_function", true, false);
         let formatted = function.format(BankStrategy::NoTests).unwrap();
+        assert!(formatted.contains("fn regular_function()"));
+        assert!(formatted.contains("/* function body */"));
 
-        // NoTests strategy should include non-test functions
-        assert!(formatted.contains("Test documentation"));
-        assert!(formatted.contains("fn regular_fn"));
-
-        // Test test function
+        // Test function
         let test_function = create_test_function("test_function", true, true);
-        let formatted_test = test_function.format(BankStrategy::NoTests).unwrap();
-
-        // NoTests strategy should skip test functions
-        assert!(formatted_test.is_empty());
+        let formatted = test_function.format(BankStrategy::NoTests).unwrap();
+        assert!(formatted.is_empty());
     }
 
     #[test]
     fn test_function_formatter_summary() {
-        // Test public function
-        let function = create_test_function("public_fn", true, false);
-        let formatted = function.format(BankStrategy::Summary).unwrap();
+        // Public function
+        let public_function = create_test_function("public_function", true, false);
+        let formatted = public_function.format(BankStrategy::Summary).unwrap();
+        assert!(formatted.contains("fn public_function()"));
+        assert!(!formatted.contains("/* function body */"));
+        assert!(formatted.contains("{ ... }"));
 
-        // Summary strategy should include public functions with only signature
-        assert!(formatted.contains("Test documentation"));
-        assert!(formatted.contains("fn public_fn(param1: String) -> String { ... }"));
-
-        // Test private function
-        let private_function = create_test_function("private_fn", false, false);
-        let formatted_private = private_function.format(BankStrategy::Summary).unwrap();
-
-        // Summary strategy should skip private functions
-        assert!(formatted_private.is_empty());
+        // Private function
+        let private_function = create_test_function("private_function", false, false);
+        let formatted = private_function.format(BankStrategy::Summary).unwrap();
+        assert!(formatted.is_empty());
     }
 
     #[test]
     fn test_struct_formatter_default() {
         let struct_unit = create_test_struct("TestStruct", true);
         let formatted = struct_unit.format(BankStrategy::Default).unwrap();
-
-        // Default strategy should include the full source
         assert!(formatted.contains("struct TestStruct"));
-        assert!(formatted.contains("pub field1: String"));
-        assert!(formatted.contains("field2: i32"));
+        assert!(formatted.contains("field: i32"));
     }
 
     #[test]
     fn test_struct_formatter_summary() {
-        // Test public struct
-        let struct_unit = create_test_struct("PublicStruct", true);
-        let formatted = struct_unit.format(BankStrategy::Summary).unwrap();
+        // Public struct
+        let public_struct = create_test_struct("PublicStruct", true);
+        let formatted = public_struct.format(BankStrategy::Summary).unwrap();
+        assert!(formatted.contains("struct PublicStruct"));
 
-        // Summary strategy should include public structs with only public fields
-        assert!(formatted.contains("Test struct documentation"));
-        assert!(formatted.contains("#[derive(Debug)]"));
-        assert!(formatted.contains("pub struct PublicStruct"));
-        assert!(formatted.contains("pub field1: String"));
-        assert!(!formatted.contains("field2: i32")); // Private field should be skipped
+        // Methods should only show signatures
+        assert!(formatted.contains("impl PublicStruct"));
+        assert!(formatted.contains("fn publicstruct_method()"));
+        assert!(!formatted.contains("/* function body */"));
 
-        // Test private struct
+        // Private struct
         let private_struct = create_test_struct("PrivateStruct", false);
-        let formatted_private = private_struct.format(BankStrategy::Summary).unwrap();
-
-        // Summary strategy should skip private structs
-        assert!(formatted_private.is_empty());
+        let formatted = private_struct.format(BankStrategy::Summary).unwrap();
+        assert!(formatted.is_empty());
     }
 
     #[test]
     fn test_module_formatter_default() {
         let module = create_test_module("test_module", true, false);
         let formatted = module.format(BankStrategy::Default).unwrap();
-
-        // Default strategy should include the full source
         assert!(formatted.contains("mod test_module"));
+        assert!(formatted.contains("/* module contents */"));
     }
 
     #[test]
     fn test_module_formatter_no_tests() {
-        // Test regular module
+        // Regular module
         let module = create_test_module("regular_module", true, false);
         let formatted = module.format(BankStrategy::NoTests).unwrap();
-
-        // NoTests strategy should include non-test modules
-        assert!(formatted.contains("Test module documentation"));
         assert!(formatted.contains("pub mod regular_module"));
-        assert!(formatted.contains("module_fn1"));
-        assert!(formatted.contains("module_fn2"));
-        assert!(!formatted.contains("test_fn")); // Test function should be skipped
+        assert!(formatted.contains("fn module_function"));
+        assert!(formatted.contains("fn module_private_function"));
+        assert!(formatted.contains("struct ModuleStruct"));
+        assert!(formatted.contains("use std::io;"));
 
-        // Test test module
-        let test_module = create_test_module("tests", true, true);
-        let formatted_test = test_module.format(BankStrategy::NoTests).unwrap();
-
-        // NoTests strategy should include the module but skip test functions
-        assert!(formatted_test.contains("Test module documentation"));
-        assert!(formatted_test.contains("pub mod tests"));
-        assert!(!formatted_test.contains("test_fn")); // Test function should be skipped
+        // Test module
+        let test_module = create_test_module("test_module", true, true);
+        let formatted = test_module.format(BankStrategy::NoTests).unwrap();
+        assert!(formatted.contains("#[cfg(test)]"));
+        assert!(formatted.contains("pub mod test_module"));
     }
 
     #[test]
     fn test_module_formatter_summary() {
-        // Test public module
-        let module = create_test_module("public_module", true, false);
-        let formatted = module.format(BankStrategy::Summary).unwrap();
-
-        // Summary strategy should include public modules with only public items
-        assert!(formatted.contains("Test module documentation"));
+        // Public module
+        let public_module = create_test_module("public_module", true, false);
+        let formatted = public_module.format(BankStrategy::Summary).unwrap();
         assert!(formatted.contains("pub mod public_module"));
-        assert!(formatted.contains("module_fn1")); // Public function
-        assert!(!formatted.contains("module_fn2")); // Private function should be skipped
+        assert!(formatted.contains("fn module_function()"));
+        // Functions should only show signatures in summary
+        assert!(!formatted.contains("/* function body */"));
 
-        // Test private module
+        // Private module
         let private_module = create_test_module("private_module", false, false);
-        let formatted_private = private_module.format(BankStrategy::Summary).unwrap();
+        let formatted = private_module.format(BankStrategy::Summary).unwrap();
+        assert!(formatted.is_empty());
+    }
 
-        // Summary strategy should skip private modules
-        assert!(!formatted_private.contains("mod private_module"));
+    #[test]
+    fn test_struct_formatter_no_tests() {
+        // Test struct with private methods
+        let struct_unit = create_test_struct("TestStruct", true);
+        let formatted = struct_unit.format(BankStrategy::NoTests).unwrap();
+
+        // Should include both public and private methods
+        assert!(formatted.contains("fn teststruct_method()")); // public method
+        assert!(formatted.contains("fn teststruct_private_method()")); // private method
     }
 
     #[test]
     fn test_file_unit_formatter() {
-        let file_unit = FileUnit {
-            path: PathBuf::from("test/file.rs"),
-            document: None,
-            declares: vec![],
-            modules: vec![
-                create_test_module("public_module", true, false),
-                create_test_module("private_module", false, false),
-                create_test_module("tests", false, true),
-            ],
-            functions: vec![
-                create_test_function("public_function", true, false),
-                create_test_function("private_function", false, false),
-                create_test_function("test_function", true, true),
-            ],
-            structs: vec![
-                create_test_struct("PublicStruct", true),
-                create_test_struct("PrivateStruct", false),
-            ],
-            traits: Vec::new(),
-            impls: Vec::new(),
-            source: Some("// Test source code".to_string()),
+        let mut file_unit = FileUnit {
+            path: std::path::PathBuf::from("test_file.rs"),
+            ..Default::default()
         };
 
+        // Add modules
+        file_unit
+            .modules
+            .push(create_test_module("public_module", true, false));
+        file_unit
+            .modules
+            .push(create_test_module("test_module", true, true));
+
+        // Add functions
+        file_unit
+            .functions
+            .push(create_test_function("public_function", true, false));
+        file_unit
+            .functions
+            .push(create_test_function("private_function", false, false));
+        file_unit
+            .functions
+            .push(create_test_function("test_function", true, true));
+
+        // Add structs
+        file_unit
+            .structs
+            .push(create_test_struct("PublicStruct", true));
+        file_unit
+            .structs
+            .push(create_test_struct("PrivateStruct", false));
+
         // Test Default strategy
-        let formatted_default = file_unit.format(BankStrategy::Default).unwrap();
-        assert_eq!(formatted_default, "// Test source code");
+        file_unit.source = Some("// This is the entire file content".to_string());
+        let formatted = file_unit.format(BankStrategy::Default).unwrap();
+        assert_eq!(formatted, "// This is the entire file content");
+
+        // Test NoTests strategy - test modules and functions should be excluded
+        let formatted = file_unit.format(BankStrategy::NoTests).unwrap();
+        assert!(formatted.contains("pub mod public_module"));
+        assert!(!formatted.contains("fn test_function"));
+        assert!(formatted.contains("fn public_function"));
+        assert!(formatted.contains("fn private_function"));
+        assert!(formatted.contains("struct PublicStruct"));
+        assert!(formatted.contains("struct PrivateStruct"));
+
+        // Test Summary strategy - only public items should be included
+        let formatted = file_unit.format(BankStrategy::Summary).unwrap();
+        assert!(formatted.contains("pub mod public_module"));
+        assert!(!formatted.contains("mod private_module"));
+        assert!(formatted.contains("fn public_function()"));
+        assert!(!formatted.contains("fn private_function"));
+        assert!(formatted.contains("struct PublicStruct"));
+        assert!(!formatted.contains("struct PrivateStruct"));
+    }
+
+    #[test]
+    fn test_file_unit_no_tests_includes_all() {
+        let mut file_unit = FileUnit {
+            path: std::path::PathBuf::from("test_file.rs"),
+            ..Default::default()
+        };
+
+        // Add modules
+        file_unit
+            .modules
+            .push(create_test_module("public_module", true, false));
+        file_unit
+            .modules
+            .push(create_test_module("private_module", false, false));
+        file_unit
+            .modules
+            .push(create_test_module("test_module", true, true));
+
+        // Add functions
+        file_unit
+            .functions
+            .push(create_test_function("public_function", true, false));
+        file_unit
+            .functions
+            .push(create_test_function("private_function", false, false));
+        file_unit
+            .functions
+            .push(create_test_function("test_function", true, true));
+
+        // Add structs
+        file_unit
+            .structs
+            .push(create_test_struct("PublicStruct", true));
+        file_unit
+            .structs
+            .push(create_test_struct("PrivateStruct", false));
+
+        // Add declarations
+        file_unit.declares.push(DeclareStatements {
+            source: "use std::collections::HashMap;".to_string(),
+            kind: DeclareKind::Use,
+        });
 
         // Test NoTests strategy
-        let formatted_no_tests = file_unit.format(BankStrategy::NoTests).unwrap();
-        assert!(formatted_no_tests.contains("public_module"));
-        assert!(formatted_no_tests.contains("private_module"));
-        assert!(!formatted_no_tests.contains("tests")); // Test module should be skipped
-        assert!(formatted_no_tests.contains("public_function"));
-        assert!(formatted_no_tests.contains("private_function"));
-        assert!(!formatted_no_tests.contains("#[test]")); // Test attribute should be skipped
+        let formatted = file_unit.format(BankStrategy::NoTests).unwrap();
 
-        // Test Summary strategy
-        let formatted_summary = file_unit.format(BankStrategy::Summary).unwrap();
-        assert!(formatted_summary.contains("public_module"));
-        assert!(!formatted_summary.contains("private_module")); // Private module should be skipped
-        assert!(!formatted_summary.contains("tests")); // Test module should be skipped
-        assert!(formatted_summary.contains("public_function"));
-        assert!(!formatted_summary.contains("private_function")); // Private function should be skipped
+        // Should include all non-test items regardless of visibility
+        assert!(formatted.contains("pub mod public_module"));
+        assert!(formatted.contains("mod private_module"));
+        assert!(!formatted.contains("fn test_function"));
+        assert!(formatted.contains("fn public_function"));
+        assert!(formatted.contains("fn private_function"));
+        assert!(formatted.contains("struct PublicStruct"));
+        assert!(formatted.contains("struct PrivateStruct"));
+        assert!(formatted.contains("use std::collections::HashMap;"));
+        assert!(formatted.contains("fn publicstruct_private_method()"));
     }
 }

@@ -1,56 +1,8 @@
-mod formatters;
-mod lang;
-mod units;
+# Simplify
 
-use crate::{BankStrategy, Result};
-use std::path::{Path, PathBuf};
+I've greatly simplified the code unit structure. Please update the code to match the new structure. The parser should be simplified as well. Formatters should be updated too. Please also update test cases.
 
-pub use lang::{CParser, PythonParser, RustParser, TypeScriptParser};
-
-pub trait Formatter {
-    fn format(&self, strategy: BankStrategy) -> Result<String>;
-}
-
-/// Represents visibility levels for code elements
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum Visibility {
-    /// Public visibility (accessible from outside the module)
-    #[default]
-    Public,
-
-    /// Private visibility (accessible only within the module)
-    Private,
-
-    /// Protected visibility (accessible within the module and its descendants)
-    Protected,
-
-    /// Crate visibility (accessible within the crate only)
-    Crate,
-
-    /// Visibility restricted to a specific path
-    Restricted(String),
-}
-
-/// The language type supported by the parser
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LanguageType {
-    /// Rust language
-    Rust,
-    /// Python language
-    Python,
-    /// TypeScript language
-    TypeScript,
-    /// C language
-    C,
-    /// Unknown language (used for unsupported extensions)
-    Unknown,
-}
-
-/// Trait for language-specific parsers
-pub trait LanguageParser {
-    /// Parse a file into a FileUnit
-    fn parse_file(&mut self, file_path: &Path) -> Result<FileUnit>;
-}
+```rust
 
 /// Represents a file in the code
 #[derive(Debug, Default)]
@@ -217,3 +169,4 @@ pub struct ImplUnit {
     /// The source code of the implementation block
     pub source: Option<String>,
 }
+```
