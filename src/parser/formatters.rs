@@ -600,40 +600,12 @@ impl Formatter for ImplUnit {
                 }
             }
             BankStrategy::NoTests | BankStrategy::Summary => {
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("/// {}\n", line));
-                    }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
                 // Check if this is a trait implementation (contains 'impl SomeTrait for')
                 let is_trait_impl = if let Some(source) = &self.source {
                     source.contains(" for ") && source.contains("impl ")
                 } else {
                     false
                 };
-
-                // Try to generate a reasonable impl block even if we don't have source
-                // We'll have to infer the target type from the source or use placeholder
-                if let Some(source) = &self.source {
-                    // Try to extract just the impl declaration (without method bodies for Summary)
-                    if let Some(idx) = source.find('{') {
-                        output.push_str(&source[0..=idx]);
-                    } else {
-                        // If no opening brace is found, use the whole declaration
-                        output.push_str(source);
-                        output.push_str(" {");
-                    }
-                } else {
-                    // Fallback if we don't have source
-                    output.push_str("impl /* unnamed type */ {");
-                }
 
                 // Add methods - handle trait implementations differently
                 let methods_to_include = match strategy {
@@ -659,6 +631,39 @@ impl Formatter for ImplUnit {
                     }
                     _ => unreachable!(),
                 };
+
+                // If no methods to include, return an empty string
+                if methods_to_include.is_empty() {
+                    return Ok(String::new());
+                }
+
+                // Add documentation
+                if let Some(doc) = &self.documentation {
+                    for line in doc.lines() {
+                        output.push_str(&format!("/// {}\n", line));
+                    }
+                }
+
+                // Add attributes
+                for attr in &self.attributes {
+                    output.push_str(&format!("{}\n", attr));
+                }
+
+                // Try to generate a reasonable impl block even if we don't have source
+                // We'll have to infer the target type from the source or use placeholder
+                if let Some(source) = &self.source {
+                    // Try to extract just the impl declaration (without method bodies for Summary)
+                    if let Some(idx) = source.find('{') {
+                        output.push_str(&source[0..=idx]);
+                    } else {
+                        // If no opening brace is found, use the whole declaration
+                        output.push_str(source);
+                        output.push_str(" {");
+                    }
+                } else {
+                    // Fallback if we don't have source
+                    output.push_str("impl /* unnamed type */ {");
+                }
 
                 for method in methods_to_include {
                     // Standard method formatting
@@ -835,6 +840,21 @@ mod tests {
         }
     }
 
+    // Helper to create a test impl block with only private methods
+    fn create_private_methods_impl() -> ImplUnit {
+        ImplUnit {
+            attributes: Vec::new(),
+            documentation: Some(
+                "Documentation for implementation with private methods".to_string(),
+            ),
+            methods: vec![
+                create_test_function("private_method1", false, false),
+                create_test_function("private_method2", false, false),
+            ],
+            source: Some("impl StructWithPrivateMethods { /* impl body */ }".to_string()),
+        }
+    }
+
     #[test]
     fn test_function_formatter_default() {
         let function = create_test_function("test_function", true, false);
@@ -987,6 +1007,22 @@ mod tests {
         let formatted = trait_impl.format(BankStrategy::NoTests).unwrap();
         assert!(formatted.contains("fn public_method"));
         assert!(formatted.contains("fn private_method"));
+    }
+
+    #[test]
+    fn test_impl_with_only_private_methods_summary() {
+        // Regular impl with only private methods should return empty string in Summary mode
+        let impl_unit = create_private_methods_impl();
+        let formatted = impl_unit.format(BankStrategy::Summary).unwrap();
+
+        // Should be empty since there are no public methods
+        assert!(formatted.is_empty());
+
+        // But in NoTests mode, it should include the private methods
+        let formatted = impl_unit.format(BankStrategy::NoTests).unwrap();
+        assert!(!formatted.is_empty());
+        assert!(formatted.contains("fn private_method1"));
+        assert!(formatted.contains("fn private_method2"));
     }
 
     #[test]
