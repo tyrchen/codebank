@@ -104,7 +104,7 @@ pub struct DeclareStatements {
     pub kind: DeclareKind,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub enum DeclareKind {
     #[default]
     Import,
@@ -127,9 +127,6 @@ pub struct ModuleUnit {
 
     /// The visibility of the module
     pub visibility: Visibility,
-
-    /// The documentation for the module
-    pub documentation: Option<String>,
 
     /// Functions defined in the module
     pub functions: Vec<FunctionUnit>,
@@ -272,7 +269,7 @@ pub struct ImplUnit {
     pub attributes: Vec<String>,
 }
 
-/// Represents a parameter in a function
+/// Represents a parameter in a function or method
 #[derive(Debug, Default)]
 pub struct ParameterUnit {
     /// The name of the parameter

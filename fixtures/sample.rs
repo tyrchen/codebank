@@ -1,5 +1,5 @@
-//! This is a module-level documentation comment
-//! It describes the purpose of this module
+//! This is a file-level documentation comment
+//! It describes the purpose of this file
 
 /// This is a public module
 pub mod public_module {

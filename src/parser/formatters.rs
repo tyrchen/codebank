@@ -133,7 +133,7 @@ impl Formatter for ModuleUnit {
             }
             BankStrategy::NoTests => {
                 // Add documentation
-                if let Some(doc) = &self.documentation {
+                if let Some(doc) = &self.document {
                     for line in doc.lines() {
                         output.push_str(&format!("/// {}\n", line));
                     }
@@ -217,7 +217,7 @@ impl Formatter for ModuleUnit {
             }
             BankStrategy::Summary => {
                 // Add documentation
-                if let Some(doc) = &self.documentation {
+                if let Some(doc) = &self.document {
                     for line in doc.lines() {
                         output.push_str(&format!("/// {}\n", line));
                     }
@@ -764,18 +764,17 @@ mod tests {
             attributes.push("#[cfg(test)]".to_string());
         }
 
-        let documentation = Some("Test module documentation".to_string());
+        let document = Some("Test module documentation".to_string());
 
         ModuleUnit {
             name: name.to_string(),
-            document: documentation.clone(),
+            document,
             declares: Vec::new(),
             visibility: if is_public {
                 Visibility::Public
             } else {
                 Visibility::Private
             },
-            documentation,
             functions: vec![
                 create_test_function("module_fn1", true, false),
                 create_test_function("module_fn2", false, false),
