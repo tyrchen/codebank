@@ -7,7 +7,11 @@ use crate::{
 };
 use ignore::Walk;
 use regex::Regex;
+use std::cell::OnceCell;
 use std::{ffi::OsStr, path::Path};
+
+#[allow(clippy::declare_interior_mutable_const)]
+const REGEX: OnceCell<Regex> = OnceCell::new();
 
 /// The code bank generator implementation
 pub struct CodeBank {
@@ -137,10 +141,9 @@ impl Bank for CodeBank {
         }
 
         // remove all empty lines
-        output = Regex::new(r"\n\s*\n+")
-            .unwrap()
-            .replace_all(&output, "\n")
-            .to_string();
+        let regex = REGEX;
+        let regex = regex.get_or_init(|| Regex::new(r"\n*\s*\n+").unwrap());
+        output = regex.replace_all(&output, "\n").to_string();
 
         Ok(output)
     }
