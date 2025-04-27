@@ -16,7 +16,6 @@ keywords = ["code", "documentation", "markdown", "generator", "parser"]
 categories = [
   "command-line-utilities",
   "development-tools",
-  "development-tools::documentation",
   "parsing",
   "text-processing",
 ]
