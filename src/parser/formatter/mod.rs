@@ -456,8 +456,34 @@ impl Formatter for StructUnit {
 
                 // Handle body/methods based on language and strategy
                 if *strategy == BankStrategy::Summary {
-                    // Summary Mode: Append ellipsis and stop
-                    output.push_str(rules.summary_ellipsis);
+                    // Check if it looks like a Rust enum based on source or head
+                    let is_rust_enum = language == LanguageType::Rust
+                        && (self.head.contains(" enum ")
+                            || self.source.as_ref().is_some_and(|s| s.contains(" enum ")));
+
+                    if is_rust_enum {
+                        if let Some(source) = &self.source {
+                            // Construct the full enum output including docs/attrs and source
+                            let mut enum_output = String::new();
+                            if let Some(doc) = &self.doc {
+                                for line in doc.lines() {
+                                    enum_output
+                                        .push_str(&format!("{} {}\n", rules.doc_marker, line));
+                                }
+                            }
+                            for attr in &self.attributes {
+                                enum_output.push_str(&format!("{}\n", attr));
+                            }
+                            enum_output.push_str(source);
+                            return Ok(enum_output); // Return the full enum source with context
+                        } else {
+                            // Fallback if no source: just head + ellipsis
+                            output.push_str(rules.summary_ellipsis);
+                        }
+                    } else {
+                        // Default summary behavior for non-enum structs
+                        output.push_str(rules.summary_ellipsis);
+                    }
                 } else {
                     // BankStrategy::NoTests
                     // NoTests Mode: Include methods
@@ -612,15 +638,8 @@ impl Formatter for ImplUnit {
                 output.push_str(" {\n");
 
                 for method in methods_to_include {
-                    // Determine the strategy for formatting the method itself
-                    let method_strategy = if *strategy == BankStrategy::Summary && is_trait_impl {
-                        // For Summary view of trait impls, show full method (like NoTests)
-                        // so private methods aren't filtered out by nested Summary call.
-                        &BankStrategy::NoTests
-                    } else {
-                        strategy
-                    };
-                    let method_formatted = method.format(method_strategy, language)?;
+                    // Format method using the current strategy (Summary will summarize bodies)
+                    let method_formatted = method.format(strategy, language)?;
 
                     if !method_formatted.is_empty() {
                         output.push_str("    ");

@@ -140,6 +140,33 @@ mod tests {
         }
     }
 
+    // Helper to create a test enum
+    fn create_test_enum(name: &str, is_public: bool) -> StructUnit {
+        let visibility = if is_public {
+            Visibility::Public
+        } else {
+            Visibility::Private
+        };
+        let head = format!("{} enum {}", visibility.as_str(LanguageType::Rust), name);
+        let source = format!(
+            "/// Docs for {}\n{} {{
+    VariantA,
+    VariantB(String),
+}}",
+            name, head
+        );
+        StructUnit {
+            name: name.to_string(),
+            head,
+            visibility,
+            doc: Some(format!("Docs for {}", name)),
+            attributes: vec![],
+            fields: vec![], // Variants aren't parsed as fields currently
+            methods: vec![],
+            source: Some(source),
+        }
+    }
+
     #[test]
     fn test_function_formatter_default() {
         let function = create_test_function("test_function", true, false);
@@ -299,7 +326,19 @@ mod tests {
         // Check the head extracted by the parser
         assert!(formatted.contains("impl SomeTrait for SomeStruct"));
         assert!(formatted.contains("fn public_method"));
-        assert!(formatted.contains("fn private_method"));
+        assert!(
+            !formatted.contains("fn private_method"),
+            "Private method should be excluded in trait impl summary"
+        );
+        // Check that bodies are summarized
+        assert!(
+            formatted.contains("public_method() { ... }"),
+            "Public method body not summarized"
+        );
+        assert!(
+            !formatted.contains("/* function body */"),
+            "Full function body should not be present"
+        );
     }
 
     #[test]
@@ -462,5 +501,26 @@ mod tests {
         assert!(formatted.contains("struct PrivateStruct"));
         assert!(formatted.contains("use std::collections::HashMap;"));
         assert!(formatted.contains("fn publicstruct_private_method()"));
+    }
+
+    #[test]
+    fn test_enum_formatter_summary() {
+        let public_enum = create_test_enum("PublicEnum", true);
+        let formatted = public_enum
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
+
+        // Summary for enums should show the full source (including variants)
+        assert!(formatted.contains("/// Docs for PublicEnum"));
+        assert!(formatted.contains("pub enum PublicEnum"));
+        assert!(formatted.contains("VariantA,"));
+        assert!(formatted.contains("VariantB(String),"));
+
+        let private_enum = create_test_enum("PrivateEnum", false);
+        let formatted = private_enum
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
+        // Private enums should be omitted entirely in summary
+        assert!(formatted.is_empty());
     }
 }
