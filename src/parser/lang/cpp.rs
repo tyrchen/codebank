@@ -1,10 +1,10 @@
-use crate::{CParser, Error, FileUnit, LanguageParser, Result};
+use crate::{CppParser, Error, FileUnit, LanguageParser, Result};
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use tree_sitter::Parser;
 
-impl CParser {
+impl CppParser {
     pub fn try_new() -> Result<Self> {
         let mut parser = Parser::new();
         let language = tree_sitter_c::LANGUAGE;
@@ -15,7 +15,7 @@ impl CParser {
     }
 }
 
-impl LanguageParser for CParser {
+impl LanguageParser for CppParser {
     fn parse_file(&mut self, file_path: &Path) -> Result<FileUnit> {
         // Basic implementation for now - just reads the file and returns an empty FileUnit
         // In a production implementation, this would parse C code using tree-sitter
@@ -88,7 +88,7 @@ impl LanguageParser for CParser {
     }
 }
 
-impl Deref for CParser {
+impl Deref for CppParser {
     type Target = Parser;
 
     fn deref(&self) -> &Self::Target {
@@ -96,7 +96,7 @@ impl Deref for CParser {
     }
 }
 
-impl DerefMut for CParser {
+impl DerefMut for CppParser {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.parser
     }

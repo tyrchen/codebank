@@ -131,3 +131,54 @@ void demonstrate_memory_allocation(void) {
     // Free memory
     free(dynamic_array);
 }
+
+// C++ specific features
+class Shape {
+public:
+    virtual double area() const = 0;
+    virtual ~Shape() {}
+};
+
+class Circle : public Shape {
+private:
+    double radius;
+public:
+    Circle(double r) : radius(r) {}
+    double area() const override {
+        return 3.14159 * radius * radius;
+    }
+};
+
+class Rectangle : public Shape {
+private:
+    double width, height;
+public:
+    Rectangle(double w, double h) : width(w), height(h) {}
+    double area() const override {
+        return width * height;
+    }
+};
+
+template<typename T>
+T max(T a, T b) {
+    return (a > b) ? a : b;
+}
+
+void demonstrate_cpp_features() {
+    // Smart pointers
+    std::unique_ptr<Shape> circle = std::make_unique<Circle>(5.0);
+    std::unique_ptr<Shape> rect = std::make_unique<Rectangle>(4.0, 6.0);
+
+    // Lambda expressions
+    auto square = [](int x) { return x * x; };
+
+    // Range-based for loop
+    std::vector<int> numbers = {1, 2, 3, 4, 5};
+    for (const auto& num : numbers) {
+        std::cout << num << " ";
+    }
+
+    // Template usage
+    int max_int = max(5, 10);
+    double max_double = max(3.14, 2.71);
+}

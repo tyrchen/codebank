@@ -1,6 +1,6 @@
 use tree_sitter::Parser;
 
-mod c;
+mod cpp;
 mod python;
 mod rust;
 mod ts;
@@ -13,7 +13,7 @@ pub struct PythonParser {
     parser: Parser,
 }
 
-pub struct CParser {
+pub struct CppParser {
     parser: Parser,
 }
 

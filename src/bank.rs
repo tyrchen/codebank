@@ -1,6 +1,6 @@
 use crate::{
     parser::{
-        formatter::Formatter, CParser, FileUnit, LanguageParser, LanguageType, PythonParser,
+        formatter::Formatter, CppParser, FileUnit, LanguageParser, LanguageType, PythonParser,
         RustParser, TypeScriptParser,
     },
     Bank, BankStrategy, Error, Result,
@@ -13,7 +13,7 @@ pub struct CodeBank {
     rust_parser: RustParser,
     python_parser: PythonParser,
     typescript_parser: TypeScriptParser,
-    c_parser: CParser,
+    c_parser: CppParser,
 }
 
 impl CodeBank {
@@ -22,7 +22,7 @@ impl CodeBank {
         let rust_parser = RustParser::try_new()?;
         let python_parser = PythonParser::try_new()?;
         let typescript_parser = TypeScriptParser::try_new()?;
-        let c_parser = CParser::try_new()?;
+        let c_parser = CppParser::try_new()?;
 
         Ok(Self {
             rust_parser,
