@@ -3,8 +3,6 @@ use std::path::Path;
 use anyhow::Result;
 use codebank::{CppParser, LanguageParser, PythonParser, RustParser, TypeScriptParser};
 
-const C: &str = include_str!("../fixtures/sample.cpp");
-
 fn main() -> Result<()> {
     let mut rust_parser = RustParser::try_new()?;
     let mut python_parser = PythonParser::try_new()?;
