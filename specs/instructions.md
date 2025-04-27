@@ -17,3 +17,5 @@ no-tests formatter should include all declare / struct / trait / impl / function
 if impl has empty function list, just return empty string. Also put a test case for this (e.g. impl contains all private function, under summary strategy, it should return empty string.
 
 please implement based on the spec @0005-mcp.md.
+
+Please add the support for python parser. Make sure you provide good unit test coverage and make sure `cargo test` passes and `cargo clippy` has not lint errors.

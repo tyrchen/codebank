@@ -3,7 +3,6 @@ use std::path::Path;
 use anyhow::Result;
 use codebank::{CParser, LanguageParser, PythonParser, RustParser, TypeScriptParser};
 
-const PYTHON: &str = include_str!("../fixtures/sample.py");
 const C: &str = include_str!("../fixtures/sample.c");
 const TS: &str = include_str!("../fixtures/sample.ts");
 
@@ -19,9 +18,11 @@ fn main() -> Result<()> {
 
     println!("Rust:\n{:#?}", data);
 
-    let tree = python_parser.parse(PYTHON, None).unwrap();
+    let data = python_parser
+        .parse_file(Path::new("fixtures/sample.py"))
+        .unwrap();
 
-    println!("Python:\n{:?}", tree);
+    println!("Python:\n{:#?}", data);
 
     let tree = c_parser.parse(C, None).unwrap();
 
