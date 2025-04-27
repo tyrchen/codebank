@@ -286,7 +286,7 @@ pub struct ModuleUnit {
 }
 
 /// Represents a function or method in the code
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FunctionUnit {
     /// The name of the function
     pub name: String,
@@ -339,7 +339,7 @@ pub struct StructUnit {
 }
 
 /// Represents a field in a struct
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FieldUnit {
     /// The name of the field
     pub name: String,
@@ -352,7 +352,7 @@ pub struct FieldUnit {
 }
 
 /// Represents a trait or interface in the code
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TraitUnit {
     /// The name of the trait
     pub name: String,
@@ -374,7 +374,7 @@ pub struct TraitUnit {
 }
 
 /// Represents an implementation block in the code, not all languages need this
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ImplUnit {
     /// Attributes applied to the trait
     pub attributes: Vec<String>,

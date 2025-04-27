@@ -755,4 +755,63 @@ mod tests {
         );
         assert!(method.body.is_some()); // Impl methods should have a body
     }
+
+    #[test]
+    fn test_struct_with_fields() {
+        let file_unit = parse_fixture("sample_with_fields.rs").unwrap();
+
+        // Find StructWithFields
+        let struct_with_fields = file_unit
+            .structs
+            .iter()
+            .find(|s| s.name == "StructWithFields")
+            .expect("StructWithFields not found");
+
+        // Check if fields were parsed
+        assert!(
+            !struct_with_fields.fields.is_empty(),
+            "Fields should be parsed for StructWithFields"
+        );
+
+        // Check details of the first field (public_field)
+        let public_field = struct_with_fields
+            .fields
+            .iter()
+            .find(|f| f.name == "public_field")
+            .expect("public_field not found");
+
+        assert!(public_field.doc.is_some());
+        assert!(public_field
+            .doc
+            .as_ref()
+            .unwrap()
+            .contains("A public field"));
+        assert!(public_field.attributes.is_empty()); // Assuming no attributes for this field
+        assert!(public_field
+            .source
+            .as_ref()
+            .unwrap()
+            .contains("pub public_field: String"));
+
+        // Check details of the second field (_private_field)
+        let private_field = struct_with_fields
+            .fields
+            .iter()
+            .find(|f| f.name == "_private_field")
+            .expect("_private_field not found");
+
+        assert!(private_field.doc.is_some());
+        assert!(private_field
+            .doc
+            .as_ref()
+            .unwrap()
+            .contains("A private field"));
+        assert!(!private_field.attributes.is_empty()); // Check for attribute
+        assert!(private_field.attributes[0].contains("#[allow(dead_code)]"));
+        assert!(private_field
+            .source
+            .as_ref()
+            .unwrap()
+            .contains("_private_field: i32"));
+    }
 }

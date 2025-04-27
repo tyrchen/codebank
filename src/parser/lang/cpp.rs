@@ -1,6 +1,6 @@
 use crate::{
-    CppParser, DeclareKind, DeclareStatements, Error, FileUnit, FunctionUnit, LanguageParser,
-    Result, StructUnit, Visibility,
+    CppParser, DeclareKind, DeclareStatements, Error, FieldUnit, FileUnit, FunctionUnit,
+    LanguageParser, Result, StructUnit, Visibility,
 };
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -106,6 +106,7 @@ impl CppParser {
         let mut name = String::new();
         let mut head = String::new();
         let mut methods = Vec::new();
+        let mut fields = Vec::new();
         let attributes = Vec::new();
         #[allow(unused_assignments)]
         let mut documentation = None;
@@ -125,9 +126,9 @@ impl CppParser {
         // Extract documentation
         documentation = self.extract_documentation(node, source_code);
 
-        // Process class body and extract methods
+        // Process class body and extract methods and fields
         if let Some(body_node) = node.child_by_field_name("body") {
-            self.extract_methods_from_node(body_node, source_code, &mut methods)?;
+            self.extract_members_from_node(body_node, source_code, &mut methods, &mut fields)?;
         }
 
         // Determine visibility
@@ -146,18 +147,19 @@ impl CppParser {
             doc: documentation,
             head,
             methods,
+            fields,
             source,
-            fields: Vec::new(),
             attributes,
         })
     }
 
-    // Helper method to extract methods from any node
-    fn extract_methods_from_node(
+    // Helper method to extract methods and fields from any node
+    fn extract_members_from_node(
         &self,
         node: Node,
         source_code: &str,
         methods: &mut Vec<FunctionUnit>,
+        fields: &mut Vec<FieldUnit>,
     ) -> Result<()> {
         let mut cursor = node.walk();
 
@@ -176,19 +178,27 @@ impl CppParser {
                 "access_specifier" => {
                     // Handle public/private/protected sections
                     if let Some(next_node) = child.next_sibling() {
-                        self.extract_methods_from_node(next_node, source_code, methods)?;
+                        self.extract_members_from_node(next_node, source_code, methods, fields)?;
+                    }
+                }
+                "field_declaration" => {
+                    if let Ok(field) = self.parse_field(child, source_code) {
+                        fields.push(field);
                     }
                 }
                 _ => {}
             }
         }
 
-        // Second pass - recursive search for nested functions
+        // Second pass - recursive search for nested functions and fields
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            if child.kind() != "function_definition" && child.kind() != "declaration" {
+            if child.kind() != "function_definition"
+                && child.kind() != "declaration"
+                && child.kind() != "field_declaration"
+            {
                 // Recursively search other nodes
-                self.extract_methods_from_node(child, source_code, methods)?;
+                self.extract_members_from_node(child, source_code, methods, fields)?;
             }
         }
 
@@ -364,10 +374,11 @@ impl CppParser {
                     }
                     _ => {
                         // Deeper search for functions
-                        self.extract_methods_from_node(
+                        self.extract_members_from_node(
                             template_declaration,
                             source_code,
                             &mut methods,
+                            &mut Vec::new(),
                         )?;
 
                         // If we found methods but no name, try to get the name from the first method
@@ -553,6 +564,42 @@ impl CppParser {
             source,
             fields: Vec::new(),
             attributes: Vec::new(),
+        })
+    }
+
+    // Parse a field declaration
+    fn parse_field(&self, node: Node, source_code: &str) -> Result<FieldUnit> {
+        let mut name = String::new();
+
+        // Look for declarator node (init_declarator, etc.) which contains the identifier
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind().ends_with("declarator") {
+                // Found a declarator, now find the identifier within it
+                if let Some(identifier) = find_identifier(child) {
+                    name = get_node_text(identifier, source_code).unwrap_or_default();
+                    break;
+                }
+            }
+        }
+
+        // Fallback: If no declarator found, maybe it's a simple declaration
+        // where identifier is a direct child (less common for fields?)
+        if name.is_empty() {
+            if let Some(identifier) = find_identifier(node) {
+                name = get_node_text(identifier, source_code).unwrap_or_default();
+            }
+        }
+
+        let documentation = self.extract_documentation(node, source_code);
+        let source = get_node_text(node, source_code);
+        let attributes = Vec::new(); // Attributes less common on C++ fields
+
+        Ok(FieldUnit {
+            name,
+            doc: documentation,
+            source,
+            attributes,
         })
     }
 }
