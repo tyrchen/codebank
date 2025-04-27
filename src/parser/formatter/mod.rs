@@ -25,7 +25,7 @@ impl Formatter for FileUnit {
             }
             BankStrategy::NoTests => {
                 // Add file documentation if present
-                if let Some(doc) = &self.document {
+                if let Some(doc) = &self.doc {
                     output.push_str(&format!("{} {}\n", rules.doc_marker, doc));
                 }
 
@@ -86,7 +86,7 @@ impl Formatter for FileUnit {
             }
             BankStrategy::Summary => {
                 // Add file documentation if present
-                if let Some(doc) = &self.document {
+                if let Some(doc) = &self.doc {
                     output.push_str(&format!("{} {}\n", rules.doc_marker, doc));
                 }
 
@@ -164,7 +164,7 @@ impl Formatter for ModuleUnit {
             }
             BankStrategy::NoTests => {
                 // Add documentation
-                if let Some(doc) = &self.document {
+                if let Some(doc) = &self.doc {
                     for line in doc.lines() {
                         output.push_str(&format!("{} {}\n", rules.doc_marker, line));
                     }
@@ -250,7 +250,7 @@ impl Formatter for ModuleUnit {
                 // Public modules only
                 if self.visibility == Visibility::Public {
                     // Add documentation
-                    if let Some(doc) = &self.document {
+                    if let Some(doc) = &self.doc {
                         for line in doc.lines() {
                             output.push_str(&format!("{} {}\n", rules.doc_marker, line));
                         }
@@ -365,7 +365,7 @@ impl Formatter for FunctionUnit {
         }
 
         // Add documentation (for NoTests and Summary of non-test, non-private functions)
-        if let Some(doc) = &self.documentation {
+        if let Some(doc) = &self.doc {
             for line in doc.lines() {
                 output.push_str(&format!("{} {}\n", rules.doc_marker, line));
             }
@@ -433,7 +433,7 @@ impl Formatter for StructUnit {
         }
 
         // Add documentation
-        if let Some(doc) = &self.documentation {
+        if let Some(doc) = &self.doc {
             for line in doc.lines() {
                 output.push_str(&format!("{} {}\n", rules.doc_marker, line));
             }
@@ -456,8 +456,34 @@ impl Formatter for StructUnit {
 
                 // Handle body/methods based on language and strategy
                 if *strategy == BankStrategy::Summary {
-                    // Summary Mode: Append ellipsis and stop
-                    output.push_str(rules.summary_ellipsis);
+                    // Check if it looks like a Rust enum based on source or head
+                    let is_rust_enum = language == LanguageType::Rust
+                        && (self.head.contains(" enum ")
+                            || self.source.as_ref().is_some_and(|s| s.contains(" enum ")));
+
+                    if is_rust_enum {
+                        if let Some(source) = &self.source {
+                            // Construct the full enum output including docs/attrs and source
+                            let mut enum_output = String::new();
+                            if let Some(doc) = &self.doc {
+                                for line in doc.lines() {
+                                    enum_output
+                                        .push_str(&format!("{} {}\n", rules.doc_marker, line));
+                                }
+                            }
+                            for attr in &self.attributes {
+                                enum_output.push_str(&format!("{}\n", attr));
+                            }
+                            enum_output.push_str(source);
+                            return Ok(enum_output); // Return the full enum source with context
+                        } else {
+                            // Fallback if no source: just head + ellipsis
+                            output.push_str(rules.summary_ellipsis);
+                        }
+                    } else {
+                        // Default summary behavior for non-enum structs
+                        output.push_str(rules.summary_ellipsis);
+                    }
                 } else {
                     // BankStrategy::NoTests
                     // NoTests Mode: Include methods
@@ -503,7 +529,7 @@ impl Formatter for TraitUnit {
         }
 
         // Add documentation
-        if let Some(doc) = &self.documentation {
+        if let Some(doc) = &self.doc {
             for line in doc.lines() {
                 output.push_str(&format!("{} {}\n", rules.doc_marker, line));
             }
@@ -590,7 +616,7 @@ impl Formatter for ImplUnit {
         }
 
         // Add documentation
-        if let Some(doc) = &self.documentation {
+        if let Some(doc) = &self.doc {
             for line in doc.lines() {
                 output.push_str(&format!("{} {}\n", rules.doc_marker, line));
             }
@@ -612,15 +638,8 @@ impl Formatter for ImplUnit {
                 output.push_str(" {\n");
 
                 for method in methods_to_include {
-                    // Determine the strategy for formatting the method itself
-                    let method_strategy = if *strategy == BankStrategy::Summary && is_trait_impl {
-                        // For Summary view of trait impls, show full method (like NoTests)
-                        // so private methods aren't filtered out by nested Summary call.
-                        &BankStrategy::NoTests
-                    } else {
-                        strategy
-                    };
-                    let method_formatted = method.format(method_strategy, language)?;
+                    // Format method using the current strategy (Summary will summarize bodies)
+                    let method_formatted = method.format(strategy, language)?;
 
                     if !method_formatted.is_empty() {
                         output.push_str("    ");
@@ -646,7 +665,7 @@ mod tests {
         let function = FunctionUnit {
             name: "test_function".to_string(),
             visibility: Visibility::Public,
-            documentation: Some("Test function documentation".to_string()),
+            doc: Some("Test function documentation".to_string()),
             signature: Some("fn test_function()".to_string()),
             body: Some("{ println!(\"test\"); }".to_string()),
             source: Some("fn test_function() { println!(\"test\"); }".to_string()),
@@ -676,7 +695,7 @@ mod tests {
         let regular_function = FunctionUnit {
             name: "regular_function".to_string(),
             visibility: Visibility::Public,
-            documentation: Some("Regular function documentation".to_string()),
+            doc: Some("Regular function documentation".to_string()),
             signature: Some("pub fn regular_function() -> bool".to_string()),
             body: Some("{ true }".to_string()),
             source: Some("pub fn regular_function() -> bool { true }".to_string()),
@@ -705,8 +724,10 @@ mod tests {
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
         assert!(result_summary_regular.contains("Regular function documentation"));
-        assert!(result_summary_regular
-            .contains(&rules.format_signature(&regular_sig, Some(&regular_sig))));
+        assert!(
+            result_summary_regular
+                .contains(&rules.format_signature(&regular_sig, Some(&regular_sig)))
+        );
         assert!(!result_summary_regular.contains("{ true }")); // Should not contain body
     }
 
@@ -715,7 +736,7 @@ mod tests {
         let test_module = ModuleUnit {
             name: "test_module".to_string(),
             visibility: Visibility::Public,
-            document: Some("Test module documentation".to_string()),
+            doc: Some("Test module documentation".to_string()),
             source: Some(
                 "/// Test module documentation\n#[cfg(test)]\nmod test_module {".to_string(),
             ),
@@ -751,7 +772,7 @@ mod tests {
         let regular_module = ModuleUnit {
             name: "regular_module".to_string(),
             visibility: Visibility::Public,
-            document: Some("Regular module documentation".to_string()),
+            doc: Some("Regular module documentation".to_string()),
             source: Some("/// Regular module documentation\nmod regular_module {}".to_string()),
             attributes: vec![],
             functions: vec![],
@@ -780,10 +801,11 @@ mod tests {
             name: "TestStruct".to_string(),
             head: "pub struct TestStruct".to_string(),
             visibility: Visibility::Public,
-            documentation: Some("Test struct documentation".to_string()),
-            source: Some("/// Test struct documentation\npub struct TestStruct {}".to_string()),
+            doc: Some("Test struct documentation".to_string()),
             attributes: vec![],
             methods: vec![],
+            fields: Vec::new(),
+            source: Some("/// Test struct documentation\npub struct TestStruct {}".to_string()),
         };
 
         let result = struct_unit
@@ -804,7 +826,7 @@ mod tests {
         let trait_unit = TraitUnit {
             name: "TestTrait".to_string(),
             visibility: Visibility::Public,
-            documentation: Some("Test trait documentation".to_string()),
+            doc: Some("Test trait documentation".to_string()),
             source: Some("/// Test trait documentation\npub trait TestTrait {}".to_string()),
             attributes: vec![],
             methods: vec![],
@@ -826,7 +848,7 @@ mod tests {
     fn test_impl_unit_format() {
         let impl_unit = ImplUnit {
             head: "impl".to_string(),
-            documentation: Some("Test impl documentation".to_string()),
+            doc: Some("Test impl documentation".to_string()),
             source: Some("/// Test impl documentation\nimpl TestStruct {".to_string()),
             attributes: vec![],
             methods: vec![],
@@ -849,7 +871,7 @@ mod tests {
     fn test_file_unit_format() {
         let file_unit = FileUnit {
             path: std::path::PathBuf::from("test.rs"),
-            document: Some("Test file documentation".to_string()),
+            doc: Some("Test file documentation".to_string()),
             source: Some("/// Test file documentation".to_string()),
             declares: vec![],
             modules: vec![],

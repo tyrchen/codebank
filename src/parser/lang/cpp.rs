@@ -1,6 +1,6 @@
 use crate::{
-    CppParser, DeclareKind, DeclareStatements, Error, FileUnit, FunctionUnit, LanguageParser,
-    Result, StructUnit, Visibility,
+    CppParser, DeclareKind, DeclareStatements, Error, FieldUnit, FileUnit, FunctionUnit,
+    LanguageParser, Result, StructUnit, Visibility,
 };
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -93,7 +93,7 @@ impl CppParser {
         Ok(FunctionUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             signature: Some(signature),
             body,
             source,
@@ -106,6 +106,7 @@ impl CppParser {
         let mut name = String::new();
         let mut head = String::new();
         let mut methods = Vec::new();
+        let mut fields = Vec::new();
         let attributes = Vec::new();
         #[allow(unused_assignments)]
         let mut documentation = None;
@@ -125,9 +126,9 @@ impl CppParser {
         // Extract documentation
         documentation = self.extract_documentation(node, source_code);
 
-        // Process class body and extract methods
+        // Process class body and extract methods and fields
         if let Some(body_node) = node.child_by_field_name("body") {
-            self.extract_methods_from_node(body_node, source_code, &mut methods)?;
+            self.extract_members_from_node(body_node, source_code, &mut methods, &mut fields)?;
         }
 
         // Determine visibility
@@ -143,20 +144,22 @@ impl CppParser {
         Ok(StructUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             head,
             methods,
+            fields,
             source,
             attributes,
         })
     }
 
-    // Helper method to extract methods from any node
-    fn extract_methods_from_node(
+    // Helper method to extract methods and fields from any node
+    fn extract_members_from_node(
         &self,
         node: Node,
         source_code: &str,
         methods: &mut Vec<FunctionUnit>,
+        fields: &mut Vec<FieldUnit>,
     ) -> Result<()> {
         let mut cursor = node.walk();
 
@@ -175,19 +178,27 @@ impl CppParser {
                 "access_specifier" => {
                     // Handle public/private/protected sections
                     if let Some(next_node) = child.next_sibling() {
-                        self.extract_methods_from_node(next_node, source_code, methods)?;
+                        self.extract_members_from_node(next_node, source_code, methods, fields)?;
+                    }
+                }
+                "field_declaration" => {
+                    if let Ok(field) = self.parse_field(child, source_code) {
+                        fields.push(field);
                     }
                 }
                 _ => {}
             }
         }
 
-        // Second pass - recursive search for nested functions
+        // Second pass - recursive search for nested functions and fields
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            if child.kind() != "function_definition" && child.kind() != "declaration" {
+            if child.kind() != "function_definition"
+                && child.kind() != "declaration"
+                && child.kind() != "field_declaration"
+            {
                 // Recursively search other nodes
-                self.extract_methods_from_node(child, source_code, methods)?;
+                self.extract_members_from_node(child, source_code, methods, fields)?;
             }
         }
 
@@ -216,7 +227,7 @@ impl CppParser {
                 // Set basic info
                 method.signature = Some(decl_text.clone());
                 method.source = Some(decl_text.clone());
-                method.documentation = self.extract_documentation(node, source_code);
+                method.doc = self.extract_documentation(node, source_code);
                 method.visibility = Visibility::Public;
 
                 // If name is still empty, try to extract from signature
@@ -281,7 +292,7 @@ impl CppParser {
                             let template_function = FunctionUnit {
                                 name: name.clone(),
                                 visibility: Visibility::Public,
-                                documentation: documentation.clone(),
+                                doc: documentation.clone(),
                                 signature: Some(format!(
                                     "{} {}",
                                     head,
@@ -307,7 +318,7 @@ impl CppParser {
                                     let template_function = FunctionUnit {
                                         name: name.clone(),
                                         visibility: Visibility::Public,
-                                        documentation: documentation.clone(),
+                                        doc: documentation.clone(),
                                         signature: Some(format!(
                                             "{} {}",
                                             head,
@@ -339,7 +350,7 @@ impl CppParser {
                                 let template_function = FunctionUnit {
                                     name: name.clone(),
                                     visibility: Visibility::Public,
-                                    documentation: documentation.clone(),
+                                    doc: documentation.clone(),
                                     signature: Some(format!(
                                         "{} {}",
                                         head,
@@ -363,10 +374,11 @@ impl CppParser {
                     }
                     _ => {
                         // Deeper search for functions
-                        self.extract_methods_from_node(
+                        self.extract_members_from_node(
                             template_declaration,
                             source_code,
                             &mut methods,
+                            &mut Vec::new(),
                         )?;
 
                         // If we found methods but no name, try to get the name from the first method
@@ -390,10 +402,11 @@ impl CppParser {
             Some(StructUnit {
                 name,
                 visibility: Visibility::Public,
-                documentation,
+                doc: documentation,
                 head,
                 methods,
                 source: Some(template_text),
+                fields: Vec::new(),
                 attributes,
             })
         } else {
@@ -407,7 +420,7 @@ impl CppParser {
     fn parse_namespace(&self, node: Node, source_code: &str) -> Result<FileUnit> {
         let documentation = self.extract_documentation(node, source_code);
         let mut namespace_unit = FileUnit {
-            document: documentation,
+            doc: documentation,
             ..Default::default()
         };
 
@@ -495,10 +508,11 @@ impl CppParser {
         Ok(StructUnit {
             name,
             visibility: Visibility::Public,
-            documentation,
+            doc: documentation,
             head,
             methods: Vec::new(),
             source,
+            fields: Vec::new(),
             attributes: Vec::new(),
         })
     }
@@ -544,11 +558,48 @@ impl CppParser {
         Ok(StructUnit {
             name,
             visibility: Visibility::Public,
-            documentation,
+            doc: documentation,
             head,
             methods: Vec::new(),
             source,
+            fields: Vec::new(),
             attributes: Vec::new(),
+        })
+    }
+
+    // Parse a field declaration
+    fn parse_field(&self, node: Node, source_code: &str) -> Result<FieldUnit> {
+        let mut name = String::new();
+
+        // Look for declarator node (init_declarator, etc.) which contains the identifier
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind().ends_with("declarator") {
+                // Found a declarator, now find the identifier within it
+                if let Some(identifier) = find_identifier(child) {
+                    name = get_node_text(identifier, source_code).unwrap_or_default();
+                    break;
+                }
+            }
+        }
+
+        // Fallback: If no declarator found, maybe it's a simple declaration
+        // where identifier is a direct child (less common for fields?)
+        if name.is_empty() {
+            if let Some(identifier) = find_identifier(node) {
+                name = get_node_text(identifier, source_code).unwrap_or_default();
+            }
+        }
+
+        let documentation = self.extract_documentation(node, source_code);
+        let source = get_node_text(node, source_code);
+        let attributes = Vec::new(); // Attributes less common on C++ fields
+
+        Ok(FieldUnit {
+            name,
+            doc: documentation,
+            source,
+            attributes,
         })
     }
 }
@@ -569,7 +620,7 @@ impl LanguageParser for CppParser {
         let mut file_unit = FileUnit {
             path: file_path.to_path_buf(),
             source: Some(source_code.clone()),
-            document: None,
+            doc: None,
             declares: Vec::new(),
             modules: Vec::new(),
             functions: Vec::new(),
@@ -595,7 +646,7 @@ impl LanguageParser for CppParser {
         }
 
         if !first_comments.is_empty() {
-            file_unit.document = Some(first_comments.join("\n"));
+            file_unit.doc = Some(first_comments.join("\n"));
         }
 
         // Process all top-level nodes in a separate scope with a new cursor
@@ -686,13 +737,13 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Shape".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "class Shape".to_string(),
                     methods: vec![
                         FunctionUnit {
                             name: "area".to_string(),
                             visibility: Visibility::Public,
-                            documentation: None,
+                            doc: None,
                             signature: Some("virtual double area() const = 0".to_string()),
                             body: None,
                             source: Some("virtual double area() const = 0;".to_string()),
@@ -700,6 +751,7 @@ impl LanguageParser for CppParser {
                         },
                     ],
                     source: Some("class Shape { public: virtual double area() const = 0; virtual ~Shape() {} };".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -721,13 +773,13 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Circle".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "class Circle : public Shape".to_string(),
                     methods: vec![
                         FunctionUnit {
                             name: "area".to_string(), // Ensure correct name
                             visibility: Visibility::Public,
-                            documentation: None,
+                            doc: None,
                             signature: Some("double area() const override".to_string()),
                             body: Some("{ return 3.14159 * radius * radius; }".to_string()),
                             source: Some("double area() const override { return 3.14159 * radius * radius; }".to_string()),
@@ -735,6 +787,7 @@ impl LanguageParser for CppParser {
                         },
                     ],
                     source: Some("class Circle : public Shape { private: double radius; public: Circle(double r) : radius(r) {} double area() const override { return 3.14159 * radius * radius; } };".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -743,13 +796,13 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Rectangle".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "class Rectangle : public Shape".to_string(),
                     methods: vec![
                         FunctionUnit {
                             name: "area".to_string(),
                             visibility: Visibility::Public,
-                            documentation: None,
+                            doc: None,
                             signature: Some("double area() const override".to_string()),
                             body: Some("{ return width * height; }".to_string()),
                             source: Some("double area() const override { return width * height; }".to_string()),
@@ -757,6 +810,7 @@ impl LanguageParser for CppParser {
                         },
                     ],
                     source: Some("class Rectangle : public Shape { private: double width, height; public: Rectangle(double w, double h) : width(w), height(h) {} double area() const override { return width * height; } };".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -766,7 +820,7 @@ impl LanguageParser for CppParser {
                 file_unit.functions.push(FunctionUnit {
                     name: "max".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     signature: Some("template<typename T> T max(T a, T b)".to_string()),
                     body: Some("{ return (a > b) ? a : b; }".to_string()),
                     source: Some(
@@ -785,10 +839,11 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Point".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "typedef struct".to_string(),
                     methods: Vec::new(),
                     source: Some("typedef struct { int x; int y; } Point;".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -797,10 +852,11 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Color".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "typedef enum".to_string(),
                     methods: Vec::new(),
                     source: Some("typedef enum { RED, GREEN, BLUE } Color;".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -999,7 +1055,7 @@ mod tests {
         let mut function = FunctionUnit {
             name: "".to_string(),
             visibility: Visibility::Public,
-            documentation: None,
+            doc: None,
             signature: Some(signature.to_string()),
             body: Some(body.to_string()),
             source: Some(source),
@@ -1047,23 +1103,29 @@ mod tests {
             .expect("max template function not found");
 
         // Check function properties
-        assert!(max_function
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains(expected_signature_contains));
-        assert!(max_function
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("max(T a, T b)"));
+        assert!(
+            max_function
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains(expected_signature_contains)
+        );
+        assert!(
+            max_function
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("max(T a, T b)")
+        );
 
         // Check body contains the expected code
-        assert!(max_function
-            .body
-            .as_ref()
-            .unwrap()
-            .contains(expected_body_contains));
+        assert!(
+            max_function
+                .body
+                .as_ref()
+                .unwrap()
+                .contains(expected_body_contains)
+        );
     }
 
     #[test]
@@ -1076,49 +1138,67 @@ mod tests {
         let file_unit = result.unwrap();
 
         // Check includes
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("<stdio.h>")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("<stdlib.h>")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("<string.h>")));
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("<stdio.h>"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("<stdlib.h>"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("<string.h>"))
+        );
 
         // Check defines
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("MAX_SIZE 100")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("MIN(a, b)")));
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("MAX_SIZE 100"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("MIN(a, b)"))
+        );
 
         // Check functions
         assert!(file_unit.functions.iter().any(|f| f.name == "main"));
         assert!(file_unit.functions.iter().any(|f| f.name == "print_hello"));
         assert!(file_unit.functions.iter().any(|f| f.name == "add_numbers"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "process_array"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "handle_pointers"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "use_control_flow"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "demonstrate_memory_allocation"));
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "process_array")
+        );
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "handle_pointers")
+        );
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "use_control_flow")
+        );
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "demonstrate_memory_allocation")
+        );
 
         // Check template function
         assert!(file_unit.functions.iter().any(|f| f.name == "max"));
@@ -1129,14 +1209,18 @@ mod tests {
         assert!(file_unit.structs.iter().any(|s| s.name == "Rectangle"));
 
         // Check function declarations
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("void print_hello(void);")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("int add_numbers(int a, int b);")));
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("void print_hello(void);"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("int add_numbers(int a, int b);"))
+        );
 
         // Check typedefs and enums
         assert!(file_unit.structs.iter().any(|s| s.name == "Point"));
@@ -1160,11 +1244,13 @@ mod tests {
             .expect("add_numbers function not found");
 
         // Check signature and body
-        assert!(add_numbers
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("int add_numbers(int a, int b)"));
+        assert!(
+            add_numbers
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("int add_numbers(int a, int b)")
+        );
         assert!(add_numbers.body.as_ref().unwrap().contains("return a + b;"));
 
         // Check visibility
@@ -1201,15 +1287,19 @@ mod tests {
             .expect("area method not found");
 
         // Check method signature and body
-        assert!(area_method
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("double area() const override"));
-        assert!(area_method
-            .body
-            .as_ref()
-            .unwrap()
-            .contains("return 3.14159 * radius * radius;"));
+        assert!(
+            area_method
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("double area() const override")
+        );
+        assert!(
+            area_method
+                .body
+                .as_ref()
+                .unwrap()
+                .contains("return 3.14159 * radius * radius;")
+        );
     }
 }

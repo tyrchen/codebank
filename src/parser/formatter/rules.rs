@@ -63,7 +63,7 @@ impl FormatterRules {
             LanguageType::Rust => RUST_RULES,
             LanguageType::Python => PYTHON_RULES,
             LanguageType::TypeScript => TS_RULES,
-            LanguageType::C => C_RULES,
+            LanguageType::Cpp => C_RULES,
             LanguageType::Unknown => UNKNOWN_RULES,
         }
     }

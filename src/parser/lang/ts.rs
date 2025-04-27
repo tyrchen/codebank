@@ -1,6 +1,6 @@
 use crate::{
-    DeclareKind, DeclareStatements, Error, FileUnit, FunctionUnit, LanguageParser, Result,
-    StructUnit, TypeScriptParser, Visibility,
+    DeclareKind, DeclareStatements, Error, FieldUnit, FileUnit, FunctionUnit, LanguageParser,
+    Result, StructUnit, TypeScriptParser, Visibility,
 };
 use std::{
     fs,
@@ -109,7 +109,7 @@ impl TypeScriptParser {
                 name,
                 source: Some(func_source),
                 visibility,
-                documentation,
+                doc: documentation,
                 signature: Some(signature),
                 body: None,
                 attributes: vec![],
@@ -186,7 +186,7 @@ impl TypeScriptParser {
                 name,
                 source: Some(func_source),
                 visibility,
-                documentation,
+                doc: documentation,
                 signature,
                 body: None,
                 attributes: vec![],
@@ -215,6 +215,7 @@ impl TypeScriptParser {
             let documentation = find_documentation_for_node(node, source);
 
             // Extract methods from the class body
+            let mut fields = Vec::new();
             let mut methods = Vec::new();
 
             // Look for the class body
@@ -286,9 +287,27 @@ impl TypeScriptParser {
                                     name: method_name,
                                     source: Some(method_source),
                                     visibility: method_visibility,
-                                    documentation: None, // Could extract doc comments for methods too
+                                    doc: None, // Could extract doc comments for methods too
                                     signature: Some(signature),
                                     body: None,
+                                    attributes: vec![],
+                                });
+                            }
+                        }
+                        // Check for field definition
+                        else if method_node.kind() == "public_field_definition" {
+                            if let Some(field_name_node) = method_node.child_by_field_name("name") {
+                                let field_name =
+                                    field_name_node.utf8_text(source).unwrap_or("").to_string();
+                                let field_source =
+                                    method_node.utf8_text(source).unwrap_or("").to_string();
+                                let field_doc = find_documentation_for_node(method_node, source);
+
+                                // TODO: Extract field attributes/decorators if needed
+                                fields.push(FieldUnit {
+                                    name: field_name,
+                                    source: Some(field_source),
+                                    doc: field_doc,
                                     attributes: vec![],
                                 });
                             }
@@ -302,7 +321,8 @@ impl TypeScriptParser {
                 source: Some(class_source),
                 head: format!("class {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
+                fields,
                 methods,
                 attributes: vec![],
             });
@@ -330,6 +350,7 @@ impl TypeScriptParser {
             let documentation = find_documentation_for_node(node, source);
 
             // Extract method declarations from the interface body
+            let mut fields = Vec::new();
             let mut methods = Vec::new();
 
             // Look for the interface body
@@ -373,9 +394,24 @@ impl TypeScriptParser {
                                     name: method_name,
                                     source: Some(method_source),
                                     visibility: Visibility::Public,
-                                    documentation: None,
+                                    doc: None,
                                     signature: Some(signature),
                                     body: None,
+                                    attributes: vec![],
+                                });
+                            }
+                        } else if method_node.kind() == "property_signature" {
+                            if let Some(field_name_node) = method_node.child_by_field_name("name") {
+                                let field_name =
+                                    field_name_node.utf8_text(source).unwrap_or("").to_string();
+                                let field_source =
+                                    method_node.utf8_text(source).unwrap_or("").to_string();
+                                let field_doc = find_documentation_for_node(method_node, source);
+
+                                fields.push(FieldUnit {
+                                    name: field_name,
+                                    source: Some(field_source),
+                                    doc: field_doc,
                                     attributes: vec![],
                                 });
                             }
@@ -389,7 +425,8 @@ impl TypeScriptParser {
                 source: Some(interface_source),
                 head: format!("interface {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
+                fields,
                 methods,
                 attributes: vec![],
             });
@@ -421,8 +458,9 @@ impl TypeScriptParser {
                 source: Some(type_source),
                 head: format!("type {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
                 methods: vec![],
+                fields: Vec::new(),
                 attributes: vec![],
             });
         }
@@ -447,8 +485,9 @@ impl TypeScriptParser {
                 source: Some(enum_source),
                 head: format!("enum {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
                 methods: vec![],
+                fields: Vec::new(),
                 attributes: vec![],
             });
         }
@@ -461,36 +500,63 @@ impl TypeScriptParser {
 fn find_documentation_for_node(node: Node, source: &[u8]) -> Option<String> {
     let mut current_node = node;
 
-    // Try to find a comment before this node
+    // Only look for preceding JSDoc block comments
     while let Some(prev) = current_node.prev_sibling() {
+        // Check for comment node kind
         if prev.kind() == "comment" {
-            // Check if it's adjacent (no other nodes in between)
-            if prev.end_byte() == current_node.start_byte() - 1 ||
-                   // Or check for whitespace
-                   (prev.end_byte() < current_node.start_byte() &&
-                    source[prev.end_byte()..current_node.start_byte()].iter().all(|&b| b == b' ' || b == b'\n' || b == b'\t' || b == b'\r'))
-            {
-                return extract_doc_comment(prev, source);
-            }
-
-            // If we find a non-comment node, stop looking
-            if prev.kind() != "comment" && !prev.is_extra() {
+            let text = prev.utf8_text(source).ok()?;
+            // Only consider JSDoc block comments
+            if text.starts_with("/**") {
+                // Check if it's adjacent (no other significant nodes in between)
+                // This logic tries to ensure the comment is directly related.
+                if prev.end_byte() == current_node.start_byte() - 1 || // Directly adjacent
+                    (prev.end_byte() < current_node.start_byte() && // Or only whitespace/newlines between
+                     source[prev.end_byte()..current_node.start_byte()].iter().all(|&b| b.is_ascii_whitespace()))
+                {
+                    return extract_doc_comment(prev, source); // Use the dedicated JSDoc extractor
+                }
+                // If it's a JSDoc but not adjacent, stop looking further back
+                // to avoid associating distant comments.
                 break;
             }
         }
+        // Stop if we hit a non-comment, non-extra node
+        else if !prev.is_extra() {
+            break;
+        }
 
+        // Move to the previous sibling to continue searching backwards
         current_node = prev;
     }
 
-    // If we didn't find documentation and this node is inside an export statement,
-    // look for documentation before the export statement
+    // If not found immediately preceding, check if parent is export statement
+    // and look before that (recursive call might be cleaner, but let's try this)
     if let Some(parent) = node.parent() {
         if parent.kind() == "export_statement" {
-            return find_documentation_for_node(parent, source);
+            current_node = parent;
+            while let Some(prev) = current_node.prev_sibling() {
+                if prev.kind() == "comment" {
+                    let text = prev.utf8_text(source).ok()?;
+                    if text.starts_with("/**") {
+                        if prev.end_byte() == current_node.start_byte() - 1
+                            || (prev.end_byte() < current_node.start_byte()
+                                && source[prev.end_byte()..current_node.start_byte()]
+                                    .iter()
+                                    .all(|&b| b.is_ascii_whitespace()))
+                        {
+                            return extract_doc_comment(prev, source);
+                        }
+                        break; // Found JSDoc but not adjacent
+                    }
+                } else if !prev.is_extra() {
+                    break; // Found non-comment
+                }
+                current_node = prev;
+            }
         }
     }
 
-    None
+    None // No appropriate comment found
 }
 
 /// Extracts documentation from a JSDoc comment node.
@@ -607,7 +673,7 @@ impl LanguageParser for TypeScriptParser {
         if let Some(child) = root_node.child(0) {
             if child.kind() == "comment" {
                 if let Some(doc) = extract_doc_comment(child, source_bytes) {
-                    file_unit.document = Some(doc);
+                    file_unit.doc = Some(doc);
                 }
             }
         }
@@ -829,11 +895,12 @@ mod tests {
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "add");
         assert_eq!(func.visibility, Visibility::Private);
-        assert!(func
-            .documentation
-            .as_ref()
-            .unwrap()
-            .contains("A function that adds two numbers"));
+        assert!(
+            func.doc
+                .as_ref()
+                .unwrap()
+                .contains("A function that adds two numbers")
+        );
 
         Ok(())
     }
@@ -856,7 +923,7 @@ mod tests {
         assert_eq!(func.name, "multiply");
         assert_eq!(func.visibility, Visibility::Public);
         // Only check documentation if it exists
-        if let Some(doc) = &func.documentation {
+        if let Some(doc) = &func.doc {
             assert!(doc.contains("An exported function"));
         }
 
@@ -876,7 +943,7 @@ mod tests {
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "arrowFunc");
         assert_eq!(func.visibility, Visibility::Private);
-        if let Some(doc) = &func.documentation {
+        if let Some(doc) = &func.doc {
             assert!(doc.contains("Arrow function"));
         }
 
@@ -914,11 +981,7 @@ mod tests {
         assert_eq!(class.name, "Person");
         assert_eq!(class.head, "class Person");
         assert_eq!(class.visibility, Visibility::Private);
-        assert!(class
-            .documentation
-            .as_ref()
-            .unwrap()
-            .contains("A person class"));
+        assert!(class.doc.as_ref().unwrap().contains("A person class"));
 
         // TODO: When method extraction is implemented, test for those as well
 
@@ -944,11 +1007,13 @@ mod tests {
         assert_eq!(interface.name, "Shape");
         assert_eq!(interface.head, "interface Shape");
         assert_eq!(interface.visibility, Visibility::Public);
-        assert!(interface
-            .documentation
-            .as_ref()
-            .unwrap()
-            .contains("Represents a shape"));
+        assert!(
+            interface
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Represents a shape")
+        );
 
         Ok(())
     }
@@ -970,11 +1035,13 @@ mod tests {
         assert_eq!(type_alias.name, "Point");
         assert_eq!(type_alias.head, "type Point");
         assert_eq!(type_alias.visibility, Visibility::Private);
-        assert!(type_alias
-            .documentation
-            .as_ref()
-            .unwrap()
-            .contains("Represents a point"));
+        assert!(
+            type_alias
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Represents a point")
+        );
 
         Ok(())
     }
@@ -998,11 +1065,13 @@ mod tests {
         assert_eq!(enum_unit.name, "Direction");
         assert_eq!(enum_unit.head, "enum Direction");
         assert_eq!(enum_unit.visibility, Visibility::Private);
-        assert!(enum_unit
-            .documentation
-            .as_ref()
-            .unwrap()
-            .contains("Represents directions"));
+        assert!(
+            enum_unit
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Represents directions")
+        );
 
         Ok(())
     }
@@ -1059,17 +1128,15 @@ mod tests {
 
         let file_unit = parse_ts_str(ts_code)?;
 
-        assert!(file_unit.document.is_some());
-        assert!(file_unit
-            .document
-            .as_ref()
-            .unwrap()
-            .contains("file-level documentation"));
-        assert!(file_unit
-            .document
-            .as_ref()
-            .unwrap()
-            .contains("@fileoverview"));
+        assert!(file_unit.doc.is_some());
+        assert!(
+            file_unit
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("file-level documentation")
+        );
+        assert!(file_unit.doc.as_ref().unwrap().contains("@fileoverview"));
 
         Ok(())
     }
@@ -1140,7 +1207,7 @@ mod tests {
         let file_unit = parse_ts_str(ts_code)?;
 
         // Check all expected components
-        assert!(file_unit.document.is_some());
+        assert!(file_unit.doc.is_some());
         assert_eq!(file_unit.declares.len(), 1); // One import
         assert_eq!(file_unit.functions.len(), 2); // getUser and formatUser
         assert_eq!(file_unit.structs.len(), 4); // User interface, ApiResponse type, UserImpl class, Status enum
@@ -1196,11 +1263,12 @@ mod tests {
         // Check regular function
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "publicFunction");
-        assert!(func
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("function publicFunction(param: string): string"));
+        assert!(
+            func.signature
+                .as_ref()
+                .unwrap()
+                .contains("function publicFunction(param: string): string")
+        );
 
         // Check arrow function
         let arrow = &file_unit.functions[1];
@@ -1229,16 +1297,20 @@ mod tests {
         // Check complex function
         let complex = &file_unit.functions[4];
         assert_eq!(complex.name, "complexFunc");
-        assert!(complex
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("function complexFunc("));
-        assert!(complex
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("): Promise<Record<string, unknown>>"));
+        assert!(
+            complex
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("function complexFunc(")
+        );
+        assert!(
+            complex
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("): Promise<Record<string, unknown>>")
+        );
 
         Ok(())
     }
@@ -1299,11 +1371,13 @@ mod tests {
             .iter()
             .find(|m| m.name == "constructor")
             .unwrap();
-        assert!(constructor
-            .signature
-            .as_ref()
-            .unwrap()
-            .starts_with("constructor("));
+        assert!(
+            constructor
+                .signature
+                .as_ref()
+                .unwrap()
+                .starts_with("constructor(")
+        );
 
         // Check public method
         let public_method = public_class
@@ -1472,6 +1546,141 @@ mod tests {
             .find(|s| s.name == "PublicEnum")
             .unwrap();
         assert_eq!(public_enum.visibility, Visibility::Public);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_class_with_fields() -> Result<()> {
+        let ts_code = r#"
+        /** Class with fields */
+        class DataStore {
+            /** The main data */
+            public data: Map<string, number>;
+
+            private _initialized: boolean = false;
+
+            readonly creationTime: Date;
+
+            constructor() {
+                this.data = new Map();
+                this.creationTime = new Date();
+            }
+        }
+        "#;
+
+        let file_unit = parse_ts_str(ts_code)?;
+        assert_eq!(file_unit.structs.len(), 1);
+        let class = &file_unit.structs[0];
+        assert_eq!(class.name, "DataStore");
+        assert_eq!(class.fields.len(), 3);
+
+        let data_field = class.fields.iter().find(|f| f.name == "data").unwrap();
+        assert_eq!(data_field.name, "data");
+        assert!(data_field.doc.as_ref().unwrap().contains("The main data"));
+        assert!(
+            data_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("public data: Map<string, number>")
+        );
+
+        let init_field = class
+            .fields
+            .iter()
+            .find(|f| f.name == "_initialized")
+            .unwrap();
+        assert_eq!(init_field.name, "_initialized");
+        assert!(init_field.doc.is_none());
+        assert!(
+            init_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("private _initialized: boolean")
+        );
+
+        let time_field = class
+            .fields
+            .iter()
+            .find(|f| f.name == "creationTime")
+            .unwrap();
+        assert_eq!(time_field.name, "creationTime");
+        assert!(time_field.doc.is_none());
+        assert!(
+            time_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("readonly creationTime: Date")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_interface_with_fields() -> Result<()> {
+        let ts_code = r#"
+        /** Interface with properties */
+        interface Config {
+            /** API endpoint URL */
+            readonly apiUrl: string;
+            timeout?: number; // Optional property
+            retries: number;
+        }
+        "#;
+
+        let file_unit = parse_ts_str(ts_code)?;
+        assert_eq!(file_unit.structs.len(), 1);
+        let interface = &file_unit.structs[0];
+        assert_eq!(interface.name, "Config");
+        assert_eq!(interface.fields.len(), 3);
+
+        let api_field = interface
+            .fields
+            .iter()
+            .find(|f| f.name == "apiUrl")
+            .unwrap();
+        assert_eq!(api_field.name, "apiUrl");
+        assert!(api_field.doc.as_ref().unwrap().contains("API endpoint URL"));
+        assert!(
+            api_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("readonly apiUrl: string")
+        );
+
+        let timeout_field = interface
+            .fields
+            .iter()
+            .find(|f| f.name == "timeout")
+            .unwrap();
+        assert_eq!(timeout_field.name, "timeout");
+        assert!(timeout_field.doc.is_none());
+        assert!(
+            timeout_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("timeout?: number")
+        );
+
+        let retries_field = interface
+            .fields
+            .iter()
+            .find(|f| f.name == "retries")
+            .unwrap();
+        assert_eq!(retries_field.name, "retries");
+        assert!(retries_field.doc.is_none());
+        assert!(
+            retries_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("retries: number")
+        );
 
         Ok(())
     }

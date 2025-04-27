@@ -1,6 +1,6 @@
 # Code Bank
 
-Code Bank is a tool to comcat code from multiple files into a single markdown file, while contains the relative path of the code and the code. It could also generate separate code summary only contains the public interfaces (data structure, functions, macros, etc.) without the code body, using tools like tree-sitter to parse the code. Generated markdown looks like this (example for Rust):
+Code Bank is a tool to concat code from multiple files into a single markdown file, while contains the relative path of the code and the code. It could also generate separate code summary only contains the public interfaces (data structure, functions, macros, etc.) without the code body, using tools like tree-sitter to parse the code. Generated markdown looks like this (example for Rust):
 
 ```markdown
 # Code Bank

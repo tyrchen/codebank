@@ -1,6 +1,6 @@
 use crate::{
-    Error, FileUnit, FunctionUnit, LanguageParser, ModuleUnit, PythonParser, Result, StructUnit,
-    Visibility,
+    Error, FieldUnit, FileUnit, FunctionUnit, LanguageParser, ModuleUnit, PythonParser, Result,
+    StructUnit, Visibility,
 };
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -160,7 +160,7 @@ impl PythonParser {
         Ok(FunctionUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             source,
             signature,
             body,
@@ -212,15 +212,51 @@ impl PythonParser {
             }
         }
 
-        Ok(StructUnit {
+        let mut class_unit = StructUnit {
             name,
             head,
             visibility,
-            documentation,
+            doc: documentation,
             source,
             attributes,
-            methods,
-        })
+            fields: Vec::new(),
+            methods: methods.clone(),
+        };
+
+        // Extract fields from __init__ method if present
+        if let Some(init_method) = methods.iter().find(|m| m.name == "__init__") {
+            if let Some(body_text) = &init_method.body {
+                // Very basic parsing: look for lines like "self.field_name = ..."
+                for line in body_text.lines() {
+                    let trimmed_line = line.trim();
+                    if trimmed_line.starts_with("self.") {
+                        if let Some(eq_pos) = trimmed_line.find('=') {
+                            let potential_field = &trimmed_line[5..eq_pos].trim();
+                            if !potential_field.is_empty()
+                                && potential_field
+                                    .chars()
+                                    .all(|c| c.is_alphanumeric() || c == '_')
+                            {
+                                // Basic check for valid identifier
+                                let field = FieldUnit {
+                                    name: potential_field.to_string(),
+                                    // Python docs/attrs for fields are harder to associate reliably here
+                                    doc: None,
+                                    attributes: Vec::new(),
+                                    source: Some(trimmed_line.to_string()),
+                                };
+                                // Avoid duplicates if field is assigned multiple times
+                                if !class_unit.fields.iter().any(|f| f.name == field.name) {
+                                    class_unit.fields.push(field);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(class_unit)
     }
 
     #[allow(dead_code)]
@@ -239,7 +275,7 @@ impl PythonParser {
         Ok(ModuleUnit {
             name,
             visibility,
-            document,
+            doc: document,
             source,
             attributes: Vec::new(),
             declares: Vec::new(),
@@ -262,7 +298,7 @@ impl LanguageParser for PythonParser {
         let mut file_unit = FileUnit {
             path: file_path.to_path_buf(),
             source: Some(source_code.clone()),
-            document: None,
+            doc: None,
             declares: Vec::new(),
             modules: Vec::new(),
             functions: Vec::new(),
@@ -296,7 +332,7 @@ impl LanguageParser for PythonParser {
                                 .trim_start_matches('\'')
                                 .trim_end_matches('\'')
                                 .trim();
-                            file_unit.document = Some(doc.to_string());
+                            file_unit.doc = Some(doc.to_string());
                         }
                     }
                 }
@@ -398,7 +434,7 @@ def hello_world():
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "hello_world");
         assert_eq!(func.visibility, Visibility::Public);
-        assert_eq!(func.documentation, Some("This is a docstring.".to_string()));
+        assert_eq!(func.doc, Some("This is a docstring.".to_string()));
         Ok(())
     }
 
@@ -419,7 +455,7 @@ class Person:
         let class = &file_unit.structs[0];
         assert_eq!(class.name, "Person");
         assert_eq!(class.visibility, Visibility::Public);
-        assert_eq!(class.documentation, Some("A person class.".to_string()));
+        assert_eq!(class.doc, Some("A person class.".to_string()));
         assert_eq!(class.attributes.len(), 1);
         assert_eq!(class.attributes[0], "@dataclass");
         Ok(())
@@ -457,7 +493,7 @@ def hello_world():
         let file_unit = parser.parse_file(&file_path)?;
 
         assert_eq!(
-            file_unit.document,
+            file_unit.doc,
             Some("This is a module docstring.".to_string())
         );
         Ok(())
@@ -475,9 +511,78 @@ def hello_world():
         let file_unit = parser.parse_file(&file_path)?;
 
         assert_eq!(
-            file_unit.document,
+            file_unit.doc,
             Some("This is a module docstring with triple quotes.".to_string())
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_class_with_fields() -> Result<()> {
+        let content = r#"
+class MyClass:
+    """Class docstring."""
+    class_var = 10 # Class variable, should not be parsed as field
+
+    def __init__(self, name: str, value: int):
+        """Init docstring."""
+        self.name = name
+        self._value = value # Private field
+        # self.complex = calculate(value) # Assignment from call
+        self.literal = "hello"
+
+    def method(self):
+        pass
+"#;
+        let (_dir, file_path) = create_test_file(content)?;
+        let mut parser = PythonParser::try_new()?;
+        let file_unit = parser.parse_file(&file_path)?;
+
+        assert_eq!(file_unit.structs.len(), 1);
+        let class = &file_unit.structs[0];
+        assert_eq!(class.name, "MyClass");
+        assert_eq!(class.methods.len(), 2);
+
+        // Check fields parsed from __init__
+        assert_eq!(class.fields.len(), 3);
+
+        // Check name field
+        let name_field = class.fields.iter().find(|f| f.name == "name").unwrap();
+        assert_eq!(name_field.name, "name");
+        assert!(name_field.doc.is_none()); // Currently not parsing field docs
+        assert!(
+            name_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("self.name = name")
+        );
+
+        // Check _value field
+        let value_field = class.fields.iter().find(|f| f.name == "_value").unwrap();
+        assert_eq!(value_field.name, "_value");
+        assert!(
+            value_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("self._value = value")
+        );
+
+        // Check literal field
+        let literal_field = class.fields.iter().find(|f| f.name == "literal").unwrap();
+        assert_eq!(literal_field.name, "literal");
+        assert!(
+            literal_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("self.literal = \"hello\"")
+        );
+
+        // Ensure class_var was not parsed as a field
+        assert!(!class.fields.iter().any(|f| f.name == "class_var"));
+
         Ok(())
     }
 }
