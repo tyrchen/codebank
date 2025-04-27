@@ -1,6 +1,6 @@
 use crate::{
-    Error, FileUnit, FunctionUnit, ImplUnit, LanguageParser, ModuleUnit, Result, RustParser,
-    StructUnit, TraitUnit, Visibility,
+    Error, FileUnit, FunctionUnit, ImplUnit, LanguageParser, LanguageType, ModuleUnit, Result,
+    RustParser, StructUnit, TraitUnit, Visibility,
 };
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -273,9 +273,13 @@ impl RustParser {
         let attributes = extract_attributes(node, source_code);
         let source = get_node_text(node, source_code);
 
+        // TODO: parse enum head
+        let head = format!("{} enum {}", visibility.as_str(LanguageType::Rust), name);
+
         // Create struct representing this enum
         let struct_unit = StructUnit {
             name,
+            head,
             visibility,
             documentation,
             source,
@@ -295,9 +299,13 @@ impl RustParser {
         let attributes = extract_attributes(node, source_code);
         let source = get_node_text(node, source_code);
 
+        // TODO: parse struct head
+        let head = format!("{} struct {}", visibility.as_str(LanguageType::Rust), name);
+
         // Create the struct with basic details
         let struct_unit = StructUnit {
             name,
+            head,
             visibility,
             documentation,
             source,

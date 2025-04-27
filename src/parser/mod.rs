@@ -325,6 +325,9 @@ pub struct StructUnit {
     /// The documentation for the struct
     pub documentation: Option<String>,
 
+    /// struct head, e.g. struct Type, class Type, etc.
+    pub head: String,
+
     /// The methods implemented for the struct
     pub methods: Vec<FunctionUnit>,
 
@@ -371,4 +374,18 @@ pub struct ImplUnit {
 
     /// The source code of the implementation block
     pub source: Option<String>,
+}
+
+impl Visibility {
+    pub fn as_str(&self, language: LanguageType) -> &str {
+        match (self, language) {
+            (Visibility::Public, LanguageType::Rust) => "pub",
+            (Visibility::Crate, LanguageType::Rust) => "pub(crate)",
+            (_, LanguageType::Rust) => "",
+            (_, LanguageType::Python) => "",
+            (_, LanguageType::TypeScript) => "",
+            (_, LanguageType::C) => "",
+            (_, LanguageType::Unknown) => "",
+        }
+    }
 }

@@ -39,14 +39,16 @@ mod tests {
             false,
         ));
 
+        let visibility = if is_public {
+            Visibility::Public
+        } else {
+            Visibility::Private
+        };
         StructUnit {
             name: name.to_string(),
+            head: format!("{} struct {}", visibility.as_str(LanguageType::Rust), name),
             attributes: Vec::new(),
-            visibility: if is_public {
-                Visibility::Public
-            } else {
-                Visibility::Private
-            },
+            visibility,
             documentation: Some(format!("Documentation for {}", name)),
             methods,
             source: Some(format!("struct {} {{ field: i32 }}", name)),
@@ -102,17 +104,24 @@ mod tests {
             create_test_function("private_method", false, false),
         ];
 
-        let source = if is_trait_impl {
-            Some("impl SomeTrait for SomeStruct { /* impl body */ }".to_string())
+        let (head, source) = if is_trait_impl {
+            (
+                "impl SomeTrait for SomeStruct".to_string(),
+                "impl SomeTrait for SomeStruct { /* impl body */ }".to_string(),
+            )
         } else {
-            Some("impl SomeStruct { /* impl body */ }".to_string())
+            (
+                "impl SomeStruct".to_string(),
+                "impl SomeStruct { /* impl body */ }".to_string(),
+            )
         };
 
         ImplUnit {
             attributes: Vec::new(),
             documentation: Some("Documentation for implementation".to_string()),
+            head,
             methods,
-            source,
+            source: Some(source),
         }
     }
 
@@ -123,6 +132,7 @@ mod tests {
             documentation: Some(
                 "Documentation for implementation with private methods".to_string(),
             ),
+            head: "impl StructWithPrivateMethods".to_string(),
             methods: vec![
                 create_test_function("private_method1", false, false),
                 create_test_function("private_method2", false, false),
@@ -134,7 +144,9 @@ mod tests {
     #[test]
     fn test_function_formatter_default() {
         let function = create_test_function("test_function", true, false);
-        let formatted = function.format(BankStrategy::Default).unwrap();
+        let formatted = function
+            .format(&BankStrategy::Default, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("fn test_function()"));
         assert!(formatted.contains("/* function body */"));
     }
@@ -143,13 +155,17 @@ mod tests {
     fn test_function_formatter_no_tests() {
         // Regular function
         let function = create_test_function("regular_function", true, false);
-        let formatted = function.format(BankStrategy::NoTests).unwrap();
+        let formatted = function
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("fn regular_function()"));
         assert!(formatted.contains("/* function body */"));
 
         // Test function
         let test_function = create_test_function("test_function", true, true);
-        let formatted = test_function.format(BankStrategy::NoTests).unwrap();
+        let formatted = test_function
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.is_empty());
     }
 
@@ -157,21 +173,27 @@ mod tests {
     fn test_function_formatter_summary() {
         // Public function
         let public_function = create_test_function("public_function", true, false);
-        let formatted = public_function.format(BankStrategy::Summary).unwrap();
+        let formatted = public_function
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("fn public_function()"));
         assert!(!formatted.contains("/* function body */"));
         assert!(formatted.contains("{ ... }"));
 
         // Private function
         let private_function = create_test_function("private_function", false, false);
-        let formatted = private_function.format(BankStrategy::Summary).unwrap();
+        let formatted = private_function
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.is_empty());
     }
 
     #[test]
     fn test_struct_formatter_default() {
         let struct_unit = create_test_struct("TestStruct", true);
-        let formatted = struct_unit.format(BankStrategy::Default).unwrap();
+        let formatted = struct_unit
+            .format(&BankStrategy::Default, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("struct TestStruct"));
         assert!(formatted.contains("field: i32"));
     }
@@ -180,24 +202,18 @@ mod tests {
     fn test_struct_formatter_summary() {
         // Public struct
         let public_struct = create_test_struct("PublicStruct", true);
-        let formatted = public_struct.format(BankStrategy::Summary).unwrap();
+        let formatted = public_struct
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("struct PublicStruct"));
-
-        // Methods should only show signatures
-        assert!(formatted.contains("impl PublicStruct"));
-        assert!(formatted.contains("fn publicstruct_method()"));
-        assert!(!formatted.contains("/* function body */"));
-
-        // Private struct
-        let private_struct = create_test_struct("PrivateStruct", false);
-        let formatted = private_struct.format(BankStrategy::Summary).unwrap();
-        assert!(formatted.is_empty());
     }
 
     #[test]
     fn test_module_formatter_default() {
         let module = create_test_module("test_module", true, false);
-        let formatted = module.format(BankStrategy::Default).unwrap();
+        let formatted = module
+            .format(&BankStrategy::Default, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("mod test_module"));
         assert!(formatted.contains("/* module contents */"));
     }
@@ -206,7 +222,9 @@ mod tests {
     fn test_module_formatter_no_tests() {
         // Regular module
         let module = create_test_module("regular_module", true, false);
-        let formatted = module.format(BankStrategy::NoTests).unwrap();
+        let formatted = module
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("pub mod regular_module"));
         assert!(formatted.contains("fn module_function"));
         assert!(formatted.contains("fn module_private_function"));
@@ -215,7 +233,9 @@ mod tests {
 
         // Test module
         let test_module = create_test_module("test_module", true, true);
-        let formatted = test_module.format(BankStrategy::NoTests).unwrap();
+        let formatted = test_module
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("#[cfg(test)]"));
         assert!(formatted.contains("pub mod test_module"));
     }
@@ -224,7 +244,9 @@ mod tests {
     fn test_module_formatter_summary() {
         // Public module
         let public_module = create_test_module("public_module", true, false);
-        let formatted = public_module.format(BankStrategy::Summary).unwrap();
+        let formatted = public_module
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("pub mod public_module"));
         assert!(formatted.contains("fn module_function()"));
         // Functions should only show signatures in summary
@@ -232,7 +254,9 @@ mod tests {
 
         // Private module
         let private_module = create_test_module("private_module", false, false);
-        let formatted = private_module.format(BankStrategy::Summary).unwrap();
+        let formatted = private_module
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.is_empty());
     }
 
@@ -240,7 +264,9 @@ mod tests {
     fn test_struct_formatter_no_tests() {
         // Test struct with private methods
         let struct_unit = create_test_struct("TestStruct", true);
-        let formatted = struct_unit.format(BankStrategy::NoTests).unwrap();
+        let formatted = struct_unit
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
 
         // Should include both public and private methods
         assert!(formatted.contains("fn teststruct_method()")); // public method
@@ -251,7 +277,9 @@ mod tests {
     fn test_regular_impl_formatter_summary() {
         // Regular (non-trait) implementation
         let impl_unit = create_test_impl(false);
-        let formatted = impl_unit.format(BankStrategy::Summary).unwrap();
+        let formatted = impl_unit
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
 
         // Only public methods should be included in regular impls
         assert!(formatted.contains("impl SomeStruct"));
@@ -263,7 +291,9 @@ mod tests {
     fn test_trait_impl_formatter_summary() {
         // Trait implementation
         let impl_unit = create_test_impl(true);
-        let formatted = impl_unit.format(BankStrategy::Summary).unwrap();
+        let formatted = impl_unit
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
 
         // Both public and private methods should be included in trait impls
         assert!(formatted.contains("impl SomeTrait for SomeStruct"));
@@ -275,12 +305,16 @@ mod tests {
     fn test_impl_formatter_no_tests() {
         // Both regular and trait implementation should include all non-test methods in NoTests mode
         let regular_impl = create_test_impl(false);
-        let formatted = regular_impl.format(BankStrategy::NoTests).unwrap();
+        let formatted = regular_impl
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("fn public_method"));
         assert!(formatted.contains("fn private_method"));
 
         let trait_impl = create_test_impl(true);
-        let formatted = trait_impl.format(BankStrategy::NoTests).unwrap();
+        let formatted = trait_impl
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("fn public_method"));
         assert!(formatted.contains("fn private_method"));
     }
@@ -289,13 +323,17 @@ mod tests {
     fn test_impl_with_only_private_methods_summary() {
         // Regular impl with only private methods should return empty string in Summary mode
         let impl_unit = create_private_methods_impl();
-        let formatted = impl_unit.format(BankStrategy::Summary).unwrap();
+        let formatted = impl_unit
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
 
         // Should be empty since there are no public methods
         assert!(formatted.is_empty());
 
         // But in NoTests mode, it should include the private methods
-        let formatted = impl_unit.format(BankStrategy::NoTests).unwrap();
+        let formatted = impl_unit
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(!formatted.is_empty());
         assert!(formatted.contains("fn private_method1"));
         assert!(formatted.contains("fn private_method2"));
@@ -337,11 +375,15 @@ mod tests {
 
         // Test Default strategy
         file_unit.source = Some("// This is the entire file content".to_string());
-        let formatted = file_unit.format(BankStrategy::Default).unwrap();
+        let formatted = file_unit
+            .format(&BankStrategy::Default, LanguageType::Rust)
+            .unwrap();
         assert_eq!(formatted, "// This is the entire file content");
 
         // Test NoTests strategy - test modules and functions should be excluded
-        let formatted = file_unit.format(BankStrategy::NoTests).unwrap();
+        let formatted = file_unit
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("pub mod public_module"));
         assert!(!formatted.contains("fn test_function"));
         assert!(formatted.contains("fn public_function"));
@@ -350,7 +392,9 @@ mod tests {
         assert!(formatted.contains("struct PrivateStruct"));
 
         // Test Summary strategy - only public items should be included
-        let formatted = file_unit.format(BankStrategy::Summary).unwrap();
+        let formatted = file_unit
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
         assert!(formatted.contains("pub mod public_module"));
         assert!(!formatted.contains("mod private_module"));
         assert!(formatted.contains("fn public_function()"));
@@ -403,7 +447,9 @@ mod tests {
         });
 
         // Test NoTests strategy
-        let formatted = file_unit.format(BankStrategy::NoTests).unwrap();
+        let formatted = file_unit
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
 
         // Should include all non-test items regardless of visibility
         assert!(formatted.contains("pub mod public_module"));

@@ -1,4 +1,6 @@
+mod python;
 mod rules;
+mod rust;
 use rules::FormatterRules;
 
 use super::{FileUnit, FunctionUnit, ImplUnit, ModuleUnit, StructUnit, TraitUnit, Visibility};
@@ -315,10 +317,52 @@ impl Formatter for FunctionUnit {
 
 // Implement Formatter for StructUnit
 impl Formatter for StructUnit {
-    fn format(&self, _strategy: &BankStrategy, _language: LanguageType) -> Result<String> {
+    fn format(&self, strategy: &BankStrategy, language: LanguageType) -> Result<String> {
         let mut output = String::new();
-        if let Some(source) = &self.source {
-            output.push_str(source);
+        let rules = FormatterRules::for_language(language);
+
+        match strategy {
+            BankStrategy::Default | BankStrategy::NoTests => {
+                if let Some(source) = &self.source {
+                    output.push_str(source);
+                }
+            }
+            BankStrategy::Summary => {
+                let public_methods: Vec<&FunctionUnit> = self
+                    .methods
+                    .iter()
+                    .filter(|m| m.visibility == Visibility::Public)
+                    .collect();
+
+                // Add documentation
+                if let Some(doc) = &self.documentation {
+                    for line in doc.lines() {
+                        output.push_str(&format!("{} {}\n", rules.doc_marker, line));
+                    }
+                }
+
+                // Add attributes
+                for attr in &self.attributes {
+                    output.push_str(&format!("{}\n", attr));
+                }
+
+                output.push_str(&self.head);
+                output.push_str(rules.function_body_start_marker);
+
+                if !public_methods.is_empty() {
+                    for method in public_methods {
+                        let method_formatted = method.format(strategy, language)?;
+                        if !method_formatted.is_empty() {
+                            output.push_str("\n    ");
+                            output.push_str(&method_formatted.replace("\n", "\n    "));
+                        }
+                    }
+                    output.push_str("\n}");
+                }
+
+                output.push_str(rules.function_body_end_marker);
+                output.push('\n');
+            }
         }
 
         Ok(output)
@@ -424,9 +468,7 @@ impl Formatter for ImplUnit {
                     output.push_str(&format!("{}\n", attr));
                 }
 
-                output.push_str(&self.head);
-                output.push(' ');
-                output.push_str(&rules.function_body_start_marker);
+                output.push_str(rules.function_body_start_marker);
 
                 for method in methods_to_include {
                     // Standard method formatting
@@ -562,6 +604,7 @@ mod tests {
     fn test_struct_unit_format() {
         let struct_unit = StructUnit {
             name: "TestStruct".to_string(),
+            head: "pub struct TestStruct".to_string(),
             visibility: Visibility::Public,
             documentation: Some("Test struct documentation".to_string()),
             source: Some("/// Test struct documentation\npub struct TestStruct {}".to_string()),
@@ -573,13 +616,13 @@ mod tests {
             .format(&BankStrategy::Default, LanguageType::Rust)
             .unwrap();
         assert!(result.contains("Test struct documentation"));
-        assert!(result.contains("pub struct TestStruct {}"));
+        assert!(result.contains("pub struct TestStruct"));
 
         let result = struct_unit
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
         println!("{}", result);
-        assert!(result.contains("pub struct TestStruct {}"));
+        assert!(result.contains("pub struct TestStruct"));
     }
 
     #[test]

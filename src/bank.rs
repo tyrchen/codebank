@@ -5,8 +5,8 @@ use crate::{
     },
     Bank, BankStrategy, Error, Result,
 };
+use ignore::Walk;
 use std::{ffi::OsStr, path::Path};
-use walkdir::WalkDir;
 
 /// The code bank generator implementation
 pub struct CodeBank {
@@ -94,14 +94,9 @@ impl Bank for CodeBank {
         let mut file_units = Vec::new();
 
         // Walk through all files in the directory
-        for entry in WalkDir::new(root_dir)
-            .follow_links(true)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            if entry.file_type().is_file() {
-                let path = entry.path();
-
+        for entry in Walk::new(root_dir).into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_file() {
                 // Try to parse the file with the appropriate parser
                 if let Ok(Some(file_unit)) = code_bank.parse_file(path) {
                     file_units.push(file_unit);

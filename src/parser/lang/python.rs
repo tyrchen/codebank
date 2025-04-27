@@ -22,18 +22,6 @@ fn get_child_node_text<'a>(node: Node<'a>, kind: &str, source_code: &'a str) -> 
         .map(String::from)
 }
 
-// Debug helper to print node structure
-fn debug_node(node: Node, source_code: &str, depth: usize) {
-    let indent = "  ".repeat(depth);
-    let text = node.utf8_text(source_code.as_bytes()).unwrap_or("???");
-    println!("{}{}: '{}'", indent, node.kind(), text);
-
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        debug_node(child, source_code, depth + 1);
-    }
-}
-
 impl PythonParser {
     pub fn try_new() -> Result<Self> {
         let mut parser = Parser::new();
@@ -92,9 +80,7 @@ impl PythonParser {
                                 .find(|c| c.kind() == "string_content")
                             {
                                 if let Some(content) = get_node_text(string_content, source_code) {
-                                    return Some(
-                                        content.trim_start_matches('"').trim().to_string(),
-                                    );
+                                    return Some(content.trim().to_string());
                                 }
                             }
                         }
@@ -141,9 +127,6 @@ impl PythonParser {
 
     // Parse function and extract its details
     fn parse_function(&self, node: Node, source_code: &str) -> Result<FunctionUnit> {
-        println!("\nParsing function node:");
-        debug_node(node, source_code, 0);
-
         // If this is a decorated function, get the actual function definition
         let function_node = if node.kind() == "decorated_definition" {
             node.children(&mut node.walk())
@@ -187,9 +170,6 @@ impl PythonParser {
 
     // Parse class and extract its details
     fn parse_class(&self, node: Node, source_code: &str) -> Result<StructUnit> {
-        println!("\nParsing class node:");
-        debug_node(node, source_code, 0);
-
         // If this is a decorated class, get the actual class definition
         let class_node = if node.kind() == "decorated_definition" {
             node.children(&mut node.walk())
@@ -209,6 +189,9 @@ impl PythonParser {
         } else {
             Visibility::Public
         };
+
+        // TODO: parse class head
+        let head = format!("class {}", name);
 
         // Extract methods from class body
         let mut methods = Vec::new();
@@ -231,6 +214,7 @@ impl PythonParser {
 
         Ok(StructUnit {
             name,
+            head,
             visibility,
             documentation,
             source,
@@ -288,8 +272,6 @@ impl LanguageParser for PythonParser {
         };
 
         let root_node = tree.root_node();
-        println!("\nParsing file:");
-        debug_node(root_node, &source_code, 0);
 
         // First look for module docstring
         {

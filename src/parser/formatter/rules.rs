@@ -19,7 +19,7 @@ const RUST_RULES: FormatterRules = FormatterRules {
 };
 
 const PYTHON_RULES: FormatterRules = FormatterRules {
-    summary_ellipsis: ": ...",
+    summary_ellipsis: " ...",
     function_body_start_marker: ":",
     function_body_end_marker: "",
     doc_marker: "#",
@@ -80,9 +80,9 @@ impl FormatterRules {
 
     pub fn format_signature(&self, source: &str, signature: Option<&str>) -> String {
         if let Some(sig) = signature {
-            format!("{}{}", sig.trim_end(), self.summary_ellipsis)
+            format!("{}{}", sig.trim(), self.summary_ellipsis)
         } else if let Some(idx) = source.find(self.function_body_start_marker) {
-            format!("{}{}", source[0..idx].trim_end(), self.summary_ellipsis)
+            format!("{}{}", source[0..idx].trim(), self.summary_ellipsis)
         } else {
             source.to_string()
         }

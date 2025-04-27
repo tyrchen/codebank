@@ -26,6 +26,7 @@ exclude = ["fixtures/*", "examples/*", "tests/*", ".github/*", ".vscode/*"]
 anyhow = "1.0"
 axum = "0.8"
 clap = { version = "4.0", features = ["derive"] }
+ignore = "0.4.23"
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", features = [
   "server",
   "transport-sse-server",
@@ -43,7 +44,6 @@ tree-sitter-c = "0.23"
 tree-sitter-python = "0.23"
 tree-sitter-rust = "0.23"
 tree-sitter-typescript = "0.23"
-walkdir = "2.3"
 
 [dev-dependencies]
 tempfile = "3.9"
