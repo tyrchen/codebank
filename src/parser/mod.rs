@@ -70,7 +70,7 @@ pub enum Visibility {
 /// assert!(matches!(LanguageType::TypeScript, LanguageType::TypeScript));
 ///
 /// // Check C files
-/// assert!(matches!(LanguageType::C, LanguageType::C));
+/// assert!(matches!(LanguageType::Cpp, LanguageType::Cpp));
 ///
 /// // Handle unknown types
 /// assert!(matches!(LanguageType::Unknown, LanguageType::Unknown));
@@ -83,8 +83,8 @@ pub enum LanguageType {
     Python,
     /// TypeScript language
     TypeScript,
-    /// C language
-    C,
+    /// C/C++ language
+    Cpp,
     /// Unknown language (used for unsupported extensions)
     Unknown,
 }
@@ -400,7 +400,7 @@ impl Visibility {
             (_, LanguageType::Rust) => "",
             (_, LanguageType::Python) => "",
             (_, LanguageType::TypeScript) => "",
-            (_, LanguageType::C) => "",
+            (_, LanguageType::Cpp) => "",
             (_, LanguageType::Unknown) => "",
         }
     }

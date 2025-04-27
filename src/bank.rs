@@ -6,6 +6,7 @@ use crate::{
     Bank, BankStrategy, Error, Result,
 };
 use ignore::Walk;
+use regex::Regex;
 use std::{ffi::OsStr, path::Path};
 
 /// The code bank generator implementation
@@ -38,7 +39,7 @@ impl CodeBank {
             Some("rs") => Some(LanguageType::Rust),
             Some("py") => Some(LanguageType::Python),
             Some("ts") | Some("tsx") | Some("js") | Some("jsx") => Some(LanguageType::TypeScript),
-            Some("c") | Some("h") => Some(LanguageType::C),
+            Some("c") | Some("h") | Some("cpp") | Some("hpp") => Some(LanguageType::Cpp),
             _ => None,
         }
     }
@@ -49,7 +50,7 @@ impl CodeBank {
             Some("rs") => "rust",
             Some("py") => "python",
             Some("ts") | Some("tsx") | Some("js") | Some("jsx") => "typescript",
-            Some("c") | Some("h") => "c",
+            Some("c") | Some("h") | Some("cpp") | Some("hpp") => "cpp",
             _ => "",
         }
     }
@@ -62,7 +63,7 @@ impl CodeBank {
             Some(LanguageType::TypeScript) => {
                 self.typescript_parser.parse_file(file_path).map(Some)
             }
-            Some(LanguageType::C) => self.c_parser.parse_file(file_path).map(Some),
+            Some(LanguageType::Cpp) => self.c_parser.parse_file(file_path).map(Some),
             Some(LanguageType::Unknown) => Ok(None),
             None => Ok(None),
         }
@@ -135,6 +136,12 @@ impl Bank for CodeBank {
             output.push_str("```\n\n");
         }
 
+        // remove all empty lines
+        output = Regex::new(r"\n\s*\n+")
+            .unwrap()
+            .replace_all(&output, "\n")
+            .to_string();
+
         Ok(output)
     }
 }
@@ -196,10 +203,10 @@ mod tests {
 
         // Test C files
         let c_path = PathBuf::from("test.c");
-        assert_eq!(code_bank.detect_language(&c_path), Some(LanguageType::C));
+        assert_eq!(code_bank.detect_language(&c_path), Some(LanguageType::Cpp));
 
         let h_path = PathBuf::from("test.h");
-        assert_eq!(code_bank.detect_language(&h_path), Some(LanguageType::C));
+        assert_eq!(code_bank.detect_language(&h_path), Some(LanguageType::Cpp));
 
         // Test unsupported files
         let unsupported_path = PathBuf::from("test.txt");
@@ -224,7 +231,7 @@ mod tests {
 
         // Test C files
         let c_path = PathBuf::from("test.c");
-        assert_eq!(code_bank.get_language_name(&c_path), "c");
+        assert_eq!(code_bank.get_language_name(&c_path), "cpp");
 
         // Test unsupported files
         let unsupported_path = PathBuf::from("test.txt");
