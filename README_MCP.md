@@ -7,10 +7,10 @@ This is a Model Context Protocol (MCP) server for CodeBank, allowing AI agents t
 Make sure you have Rust and Cargo installed, then build the project:
 
 ```bash
-cargo build --release
+cargo install --path . # or cargo install codebank
 ```
 
-The binary will be in `target/release/cb_mcp`.
+The binary will be in `~/.cargo/bin/cb-mcp`.
 
 ## Usage
 
@@ -18,20 +18,39 @@ The binary will be in `target/release/cb_mcp`.
 
 #### STDIO Mode
 
-Run as an MCP server in STDIO mode:
+Please add the following to your the mcp config of cursor or claude:
+
+```json
+"cb-mcp": {
+  "command": "/Path/to/cb-mcp",
+  "args": [
+    "stdio"
+  ]
+}
+```
+
+Your mcp client will run the following command (if they didn't, you can run it manually):
 
 ```bash
-cb_mcp stdio
+cb-mcp stdio
 ```
 
 This allows AI agents to interact with the server through standard input/output.
 
 #### SSE Mode
 
+Please add the following to your the mcp config of cursor or claude:
+
+```json
+"cb-mcp": {
+      "url": "http://localhost:3000/sse"
+    }
+```
+
 Run as an MCP server in SSE (Server-Sent Events) mode on a specific port:
 
 ```bash
-cb_mcp sse --port 3000
+cb-mcp sse --port 3000
 ```
 
 This starts a web server that AI agents can interact with.
