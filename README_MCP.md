@@ -4,10 +4,10 @@ This is a Model Context Protocol (MCP) server for CodeBank, allowing AI agents t
 
 ## Installation
 
-Make sure you have Rust and Cargo installed, then build the project:
+Make sure you have Rust and Cargo installed, then install the `cb-mcp` binary by running:
 
 ```bash
-cargo install --path . # or cargo install codebank
+cargo install codebank
 ```
 
 The binary will be in `~/.cargo/bin/cb-mcp`.

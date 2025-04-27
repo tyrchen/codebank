@@ -30,12 +30,16 @@ CodeBank is a powerful code analysis and documentation tool that parses source c
 
 ## Installation
 
-Add CodeBank to your project's dependencies:
+You can install CodeBank using Cargo:
 
-```toml
-[dependencies]
-codebank = "0.1.0"  # Replace with actual version
+```bash
+cargo install codebank
 ```
+
+There are two executable binaries: `cb` and `cb-mcp`.
+
+- `cb` is the command line interface for CodeBank.
+- `cb-mcp` is the MCP server for CodeBank.
 
 ## Usage
 
@@ -52,7 +56,20 @@ cb /path/to/source --strategy no-tests --output docs.md
 cb /path/to/source --strategy summary --output docs.md
 ```
 
+### MCP Usage
+
+Please refer to [README_MCP.md](README_MCP.md) for details.
+
 ### Library Usage
+
+Add CodeBank to your project's dependencies:
+
+```toml
+[dependencies]
+codebank = "0.2.1"  # Replace with actual version
+```
+
+Then use it in your Rust code:
 
 ```rust
 use codebank::{Bank, BankStrategy, CodeBank};
