@@ -349,6 +349,15 @@ impl RustParser {
         let source = get_node_text(node, source_code);
         let mut methods = Vec::new();
 
+        let is_trait_impl = if let Some(source) = &source {
+            source.contains(" for ") && source.contains("impl ")
+        } else {
+            false
+        };
+
+        // TODO: parse impl head
+        let head = "";
+
         // Look for implemented methods
         if let Some(block_node) = node
             .children(&mut node.walk())
@@ -356,7 +365,10 @@ impl RustParser {
         {
             for item in block_node.children(&mut block_node.walk()) {
                 if item.kind() == "function_item" {
-                    if let Ok(method) = self.parse_function(item, source_code) {
+                    if let Ok(mut method) = self.parse_function(item, source_code) {
+                        if is_trait_impl {
+                            method.visibility = Visibility::Public;
+                        }
                         methods.push(method);
                     }
                 }
@@ -365,6 +377,7 @@ impl RustParser {
 
         Ok(ImplUnit {
             documentation,
+            head: head.to_string(),
             source,
             attributes,
             methods,

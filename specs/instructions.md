@@ -19,3 +19,5 @@ if impl has empty function list, just return empty string. Also put a test case 
 please implement based on the spec @0005-mcp.md.
 
 Please add the support for python parser. Make sure you provide good unit test coverage and make sure `cargo test` passes and `cargo clippy` has not lint errors.
+
+Please improve formatter for example NoTest logic should allow different implementation for rust / python / etc., similar as summary for function signature only, rust is `{ ... }` python should be ` ...`, etc. I've moved formatters.rs to a mod under formatter. Please provide specific functions to @rust.rs or @python.rs . And put python formatter tests to @python.rs

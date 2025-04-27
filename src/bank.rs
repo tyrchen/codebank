@@ -1,11 +1,12 @@
-use std::ffi::OsStr;
-use std::path::Path;
-use walkdir::WalkDir;
-
 use crate::{
-    Bank, BankStrategy, CParser, Error, FileUnit, Formatter, LanguageParser, LanguageType,
-    PythonParser, Result, RustParser, TypeScriptParser,
+    parser::{
+        formatter::Formatter, CParser, FileUnit, LanguageParser, LanguageType, PythonParser,
+        RustParser, TypeScriptParser,
+    },
+    Bank, BankStrategy, Error, Result,
 };
+use std::{ffi::OsStr, path::Path};
+use walkdir::WalkDir;
 
 /// The code bank generator implementation
 pub struct CodeBank {
@@ -128,7 +129,12 @@ impl Bank for CodeBank {
             output.push_str(&format!("```{}\n", lang));
 
             // Format the file unit using the Formatter trait
-            let formatted_content = file_unit.format(strategy.clone())?;
+            let formatted_content = file_unit.format(
+                &strategy,
+                code_bank
+                    .detect_language(&file_unit.path)
+                    .unwrap_or(LanguageType::Unknown),
+            )?;
             output.push_str(&formatted_content);
 
             output.push_str("```\n\n");

@@ -149,7 +149,7 @@ pub use parser::*;
 /// // Use Summary strategy for public interface only
 /// let strategy = BankStrategy::Summary;
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BankStrategy {
     /// Generate the full code bank for the given directory using default settings.
     /// This includes all code elements with their complete implementations.

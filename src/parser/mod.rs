@@ -1,49 +1,12 @@
-mod formatters;
+pub mod formatter;
 mod lang;
 mod units;
 
-use crate::{BankStrategy, Result};
+use crate::Result;
 use std::path::{Path, PathBuf};
 
+pub use formatter::Formatter;
 pub use lang::{CParser, PythonParser, RustParser, TypeScriptParser};
-
-/// Trait for formatting code units into string representation.
-///
-/// This trait is implemented by various code units to provide
-/// consistent formatting based on the selected strategy.
-///
-/// # Examples
-///
-/// ```
-/// use codebank::{Formatter, BankStrategy, Result};
-///
-/// struct MyUnit {
-///     content: String,
-/// }
-///
-/// impl Formatter for MyUnit {
-///     fn format(&self, strategy: BankStrategy) -> Result<String> {
-///         match strategy {
-///             BankStrategy::Summary => Ok(format!("Summary: {}", self.content)),
-///             _ => Ok(self.content.clone()),
-///         }
-///     }
-/// }
-///
-/// # fn main() -> Result<()> {
-/// let unit = MyUnit {
-///     content: "Hello".to_string(),
-/// };
-///
-/// let formatted = unit.format(BankStrategy::Summary)?;
-/// assert_eq!(formatted, "Summary: Hello");
-/// # Ok(())
-/// # }
-/// ```
-pub trait Formatter {
-    /// Format the code unit according to the specified strategy.
-    fn format(&self, strategy: BankStrategy) -> Result<String>;
-}
 
 /// Represents visibility levels for code elements.
 ///
@@ -399,6 +362,9 @@ pub struct ImplUnit {
 
     /// The documentation for the implementation block
     pub documentation: Option<String>,
+
+    /// impl head, e.g. impl Trait for Type or impl Type
+    pub head: String,
 
     /// The methods implemented in this block
     pub methods: Vec<FunctionUnit>,
