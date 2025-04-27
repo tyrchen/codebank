@@ -23,15 +23,16 @@ fn main() -> Result<()> {
 
     println!("Python:\n{:#?}", data);
 
-    let tree = cpp_parser.parse(C, None).unwrap();
-
-    println!("C:\n{:?}", tree);
-
     let data = ts_parser
         .parse_file(Path::new("fixtures/sample.ts"))
         .unwrap();
 
     println!("TypeScript:\n{:#?}", data);
 
+    let data = cpp_parser
+        .parse_file(Path::new("fixtures/sample.cpp"))
+        .unwrap();
+
+    println!("C:\n{:#?}", data);
     Ok(())
 }
