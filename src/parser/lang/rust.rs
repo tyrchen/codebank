@@ -1,6 +1,6 @@
 use crate::{
-    Error, FileUnit, FunctionUnit, ImplUnit, LanguageParser, LanguageType, ModuleUnit, Result,
-    RustParser, StructUnit, TraitUnit, Visibility,
+    Error, FieldUnit, FileUnit, FunctionUnit, ImplUnit, LanguageParser, LanguageType, ModuleUnit,
+    Result, RustParser, StructUnit, TraitUnit, Visibility,
 };
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -337,31 +337,23 @@ impl RustParser {
         // Parse struct head using the helper, passing visibility by reference
         let head = self.parse_item_head(node, source_code, "struct", &visibility, &name);
 
-        // Parse fields from the body - Commented out: Requires FieldUnit/StructUnit changes
-        /*
+        let mut fields = Vec::new();
         if let Some(body_node) = node
             .children(&mut node.walk())
             .find(|child| child.kind() == "field_declaration_list")
         {
             for field_decl in body_node.children(&mut body_node.walk()) {
                 if field_decl.kind() == "field_declaration" {
-                    let field_visibility = self.determine_visibility(field_decl, source_code);
                     let field_documentation = self.extract_documentation(field_decl, source_code);
                     let field_attributes = extract_attributes(field_decl, source_code);
                     let field_source = get_node_text(field_decl, source_code);
 
-                    let field_name = get_child_node_text(field_decl, "field_identifier", source_code)
-                        .unwrap_or_default();
-                    // Type extraction can be complex, start simple
-                    let field_type = get_child_node_text(field_decl, "type_identifier", source_code)
-                         .or_else(|| get_child_node_text(field_decl, "generic_type", source_code)) // Try generic type too
-                         .or_else(|| get_child_node_text(field_decl, "primitive_type", source_code))
-                         .unwrap_or_else(|| "unknown_type".to_string()); // Fallback type
+                    let field_name =
+                        get_child_node_text(field_decl, "field_identifier", source_code)
+                            .unwrap_or_default();
 
                     fields.push(FieldUnit {
                         name: field_name,
-                        type_info: field_type,
-                        visibility: field_visibility,
                         doc: field_documentation,
                         attributes: field_attributes,
                         source: field_source,
@@ -369,7 +361,6 @@ impl RustParser {
                 }
             }
         }
-        */
 
         // NOTE: Ensure StructUnit in src/parser/mod.rs has the `fields` field added.
         let struct_unit = StructUnit {
@@ -379,7 +370,7 @@ impl RustParser {
             doc: documentation,
             source,
             attributes,
-            fields: Vec::new(),  // Added fields initialization
+            fields,
             methods: Vec::new(), // Methods are parsed in impl blocks, not here
         };
 
