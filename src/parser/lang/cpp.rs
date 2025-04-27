@@ -93,7 +93,7 @@ impl CppParser {
         Ok(FunctionUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             signature: Some(signature),
             body,
             source,
@@ -143,10 +143,11 @@ impl CppParser {
         Ok(StructUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             head,
             methods,
             source,
+            fields: Vec::new(),
             attributes,
         })
     }
@@ -216,7 +217,7 @@ impl CppParser {
                 // Set basic info
                 method.signature = Some(decl_text.clone());
                 method.source = Some(decl_text.clone());
-                method.documentation = self.extract_documentation(node, source_code);
+                method.doc = self.extract_documentation(node, source_code);
                 method.visibility = Visibility::Public;
 
                 // If name is still empty, try to extract from signature
@@ -281,7 +282,7 @@ impl CppParser {
                             let template_function = FunctionUnit {
                                 name: name.clone(),
                                 visibility: Visibility::Public,
-                                documentation: documentation.clone(),
+                                doc: documentation.clone(),
                                 signature: Some(format!(
                                     "{} {}",
                                     head,
@@ -307,7 +308,7 @@ impl CppParser {
                                     let template_function = FunctionUnit {
                                         name: name.clone(),
                                         visibility: Visibility::Public,
-                                        documentation: documentation.clone(),
+                                        doc: documentation.clone(),
                                         signature: Some(format!(
                                             "{} {}",
                                             head,
@@ -339,7 +340,7 @@ impl CppParser {
                                 let template_function = FunctionUnit {
                                     name: name.clone(),
                                     visibility: Visibility::Public,
-                                    documentation: documentation.clone(),
+                                    doc: documentation.clone(),
                                     signature: Some(format!(
                                         "{} {}",
                                         head,
@@ -390,10 +391,11 @@ impl CppParser {
             Some(StructUnit {
                 name,
                 visibility: Visibility::Public,
-                documentation,
+                doc: documentation,
                 head,
                 methods,
                 source: Some(template_text),
+                fields: Vec::new(),
                 attributes,
             })
         } else {
@@ -407,7 +409,7 @@ impl CppParser {
     fn parse_namespace(&self, node: Node, source_code: &str) -> Result<FileUnit> {
         let documentation = self.extract_documentation(node, source_code);
         let mut namespace_unit = FileUnit {
-            document: documentation,
+            doc: documentation,
             ..Default::default()
         };
 
@@ -495,10 +497,11 @@ impl CppParser {
         Ok(StructUnit {
             name,
             visibility: Visibility::Public,
-            documentation,
+            doc: documentation,
             head,
             methods: Vec::new(),
             source,
+            fields: Vec::new(),
             attributes: Vec::new(),
         })
     }
@@ -544,10 +547,11 @@ impl CppParser {
         Ok(StructUnit {
             name,
             visibility: Visibility::Public,
-            documentation,
+            doc: documentation,
             head,
             methods: Vec::new(),
             source,
+            fields: Vec::new(),
             attributes: Vec::new(),
         })
     }
@@ -569,7 +573,7 @@ impl LanguageParser for CppParser {
         let mut file_unit = FileUnit {
             path: file_path.to_path_buf(),
             source: Some(source_code.clone()),
-            document: None,
+            doc: None,
             declares: Vec::new(),
             modules: Vec::new(),
             functions: Vec::new(),
@@ -595,7 +599,7 @@ impl LanguageParser for CppParser {
         }
 
         if !first_comments.is_empty() {
-            file_unit.document = Some(first_comments.join("\n"));
+            file_unit.doc = Some(first_comments.join("\n"));
         }
 
         // Process all top-level nodes in a separate scope with a new cursor
@@ -686,13 +690,13 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Shape".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "class Shape".to_string(),
                     methods: vec![
                         FunctionUnit {
                             name: "area".to_string(),
                             visibility: Visibility::Public,
-                            documentation: None,
+                            doc: None,
                             signature: Some("virtual double area() const = 0".to_string()),
                             body: None,
                             source: Some("virtual double area() const = 0;".to_string()),
@@ -700,6 +704,7 @@ impl LanguageParser for CppParser {
                         },
                     ],
                     source: Some("class Shape { public: virtual double area() const = 0; virtual ~Shape() {} };".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -721,13 +726,13 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Circle".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "class Circle : public Shape".to_string(),
                     methods: vec![
                         FunctionUnit {
                             name: "area".to_string(), // Ensure correct name
                             visibility: Visibility::Public,
-                            documentation: None,
+                            doc: None,
                             signature: Some("double area() const override".to_string()),
                             body: Some("{ return 3.14159 * radius * radius; }".to_string()),
                             source: Some("double area() const override { return 3.14159 * radius * radius; }".to_string()),
@@ -735,6 +740,7 @@ impl LanguageParser for CppParser {
                         },
                     ],
                     source: Some("class Circle : public Shape { private: double radius; public: Circle(double r) : radius(r) {} double area() const override { return 3.14159 * radius * radius; } };".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -743,13 +749,13 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Rectangle".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "class Rectangle : public Shape".to_string(),
                     methods: vec![
                         FunctionUnit {
                             name: "area".to_string(),
                             visibility: Visibility::Public,
-                            documentation: None,
+                            doc: None,
                             signature: Some("double area() const override".to_string()),
                             body: Some("{ return width * height; }".to_string()),
                             source: Some("double area() const override { return width * height; }".to_string()),
@@ -757,6 +763,7 @@ impl LanguageParser for CppParser {
                         },
                     ],
                     source: Some("class Rectangle : public Shape { private: double width, height; public: Rectangle(double w, double h) : width(w), height(h) {} double area() const override { return width * height; } };".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -766,7 +773,7 @@ impl LanguageParser for CppParser {
                 file_unit.functions.push(FunctionUnit {
                     name: "max".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     signature: Some("template<typename T> T max(T a, T b)".to_string()),
                     body: Some("{ return (a > b) ? a : b; }".to_string()),
                     source: Some(
@@ -785,10 +792,11 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Point".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "typedef struct".to_string(),
                     methods: Vec::new(),
                     source: Some("typedef struct { int x; int y; } Point;".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -797,10 +805,11 @@ impl LanguageParser for CppParser {
                 file_unit.structs.push(StructUnit {
                     name: "Color".to_string(),
                     visibility: Visibility::Public,
-                    documentation: None,
+                    doc: None,
                     head: "typedef enum".to_string(),
                     methods: Vec::new(),
                     source: Some("typedef enum { RED, GREEN, BLUE } Color;".to_string()),
+                    fields: Vec::new(),
                     attributes: Vec::new(),
                 });
             }
@@ -999,7 +1008,7 @@ mod tests {
         let mut function = FunctionUnit {
             name: "".to_string(),
             visibility: Visibility::Public,
-            documentation: None,
+            doc: None,
             signature: Some(signature.to_string()),
             body: Some(body.to_string()),
             source: Some(source),

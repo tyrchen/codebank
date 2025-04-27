@@ -160,7 +160,7 @@ impl PythonParser {
         Ok(FunctionUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             source,
             signature,
             body,
@@ -216,9 +216,10 @@ impl PythonParser {
             name,
             head,
             visibility,
-            documentation,
+            doc: documentation,
             source,
             attributes,
+            fields: Vec::new(),
             methods,
         })
     }
@@ -239,7 +240,7 @@ impl PythonParser {
         Ok(ModuleUnit {
             name,
             visibility,
-            document,
+            doc: document,
             source,
             attributes: Vec::new(),
             declares: Vec::new(),
@@ -262,7 +263,7 @@ impl LanguageParser for PythonParser {
         let mut file_unit = FileUnit {
             path: file_path.to_path_buf(),
             source: Some(source_code.clone()),
-            document: None,
+            doc: None,
             declares: Vec::new(),
             modules: Vec::new(),
             functions: Vec::new(),
@@ -296,7 +297,7 @@ impl LanguageParser for PythonParser {
                                 .trim_start_matches('\'')
                                 .trim_end_matches('\'')
                                 .trim();
-                            file_unit.document = Some(doc.to_string());
+                            file_unit.doc = Some(doc.to_string());
                         }
                     }
                 }
@@ -398,7 +399,7 @@ def hello_world():
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "hello_world");
         assert_eq!(func.visibility, Visibility::Public);
-        assert_eq!(func.documentation, Some("This is a docstring.".to_string()));
+        assert_eq!(func.doc, Some("This is a docstring.".to_string()));
         Ok(())
     }
 
@@ -419,7 +420,7 @@ class Person:
         let class = &file_unit.structs[0];
         assert_eq!(class.name, "Person");
         assert_eq!(class.visibility, Visibility::Public);
-        assert_eq!(class.documentation, Some("A person class.".to_string()));
+        assert_eq!(class.doc, Some("A person class.".to_string()));
         assert_eq!(class.attributes.len(), 1);
         assert_eq!(class.attributes[0], "@dataclass");
         Ok(())
@@ -457,7 +458,7 @@ def hello_world():
         let file_unit = parser.parse_file(&file_path)?;
 
         assert_eq!(
-            file_unit.document,
+            file_unit.doc,
             Some("This is a module docstring.".to_string())
         );
         Ok(())
@@ -475,7 +476,7 @@ def hello_world():
         let file_unit = parser.parse_file(&file_path)?;
 
         assert_eq!(
-            file_unit.document,
+            file_unit.doc,
             Some("This is a module docstring with triple quotes.".to_string())
         );
         Ok(())

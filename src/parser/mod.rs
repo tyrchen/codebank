@@ -136,13 +136,13 @@ pub trait LanguageParser {
 /// let mut file = FileUnit::new(PathBuf::from("example.rs"));
 ///
 /// // Add documentation
-/// file.document = Some("Example file documentation".to_string());
+/// file.doc = Some("Example file documentation".to_string());
 ///
 /// // Add a function
 /// let function = FunctionUnit {
 ///     name: "example_function".to_string(),
 ///     visibility: Visibility::Public,
-///     documentation: Some("Function documentation".to_string()),
+///     doc: Some("Function documentation".to_string()),
 ///     signature: Some("fn example_function()".to_string()),
 ///     body: Some("{ println!(\"Hello\"); }".to_string()),
 ///     source: Some("fn example_function() { println!(\"Hello\"); }".to_string()),
@@ -151,7 +151,7 @@ pub trait LanguageParser {
 /// file.functions.push(function);
 ///
 /// assert_eq!(file.path, PathBuf::from("example.rs"));
-/// assert!(file.document.is_some());
+/// assert!(file.doc.is_some());
 /// assert!(!file.functions.is_empty());
 /// ```
 #[derive(Debug, Default)]
@@ -160,7 +160,7 @@ pub struct FileUnit {
     pub path: PathBuf,
 
     /// File-level documentation
-    pub document: Option<String>,
+    pub doc: Option<String>,
 
     /// The declares in the file, e.g. imports, use statements, mod statements, c includes, python/js imports, etc.
     pub declares: Vec<DeclareStatements>,
@@ -258,7 +258,7 @@ pub struct ModuleUnit {
     pub attributes: Vec<String>,
 
     /// The document for the module
-    pub document: Option<String>,
+    pub doc: Option<String>,
 
     /// The declares in the module, e.g. imports, use statements, mod statements, c includes, python/js imports, etc.
     pub declares: Vec<DeclareStatements>,
@@ -298,7 +298,7 @@ pub struct FunctionUnit {
     pub visibility: Visibility,
 
     /// The documentation for the function
-    pub documentation: Option<String>,
+    pub doc: Option<String>,
 
     /// The function signature (without body)
     pub signature: Option<String>,
@@ -323,15 +323,31 @@ pub struct StructUnit {
     pub visibility: Visibility,
 
     /// The documentation for the struct
-    pub documentation: Option<String>,
+    pub doc: Option<String>,
 
     /// struct head, e.g. struct Type, class Type, etc.
     pub head: String,
+
+    /// The fields of the struct
+    pub fields: Vec<FieldUnit>,
 
     /// The methods implemented for the struct
     pub methods: Vec<FunctionUnit>,
 
     /// The source code of the struct
+    pub source: Option<String>,
+}
+
+/// Represents a field in a struct
+#[derive(Debug, Default)]
+pub struct FieldUnit {
+    /// The name of the field
+    pub name: String,
+    /// documentation for the field
+    pub doc: Option<String>,
+    /// attributes applied to the field
+    pub attributes: Vec<String>,
+    /// the source code of the field
     pub source: Option<String>,
 }
 
@@ -348,7 +364,7 @@ pub struct TraitUnit {
     pub visibility: Visibility,
 
     /// The documentation for the trait
-    pub documentation: Option<String>,
+    pub doc: Option<String>,
 
     /// The methods declared in the trait
     pub methods: Vec<FunctionUnit>,
@@ -364,7 +380,7 @@ pub struct ImplUnit {
     pub attributes: Vec<String>,
 
     /// The documentation for the implementation block
-    pub documentation: Option<String>,
+    pub doc: Option<String>,
 
     /// impl head, e.g. impl Trait for Type or impl Type
     pub head: String,

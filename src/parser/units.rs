@@ -17,7 +17,7 @@ use std::path::PathBuf;
 ///
 /// assert_eq!(module.name, "example");
 /// assert!(matches!(module.visibility, Visibility::Public));
-/// assert_eq!(module.document, Some("Module documentation".to_string()));
+/// assert_eq!(module.doc, Some("Module documentation".to_string()));
 /// assert!(module.functions.is_empty());
 /// assert!(module.structs.is_empty());
 /// assert!(module.traits.is_empty());
@@ -46,12 +46,12 @@ impl ModuleUnit {
     ///
     /// assert_eq!(module.name, "my_module");
     /// ```
-    pub fn new(name: String, visibility: Visibility, document: Option<String>) -> Self {
+    pub fn new(name: String, visibility: Visibility, doc: Option<String>) -> Self {
         Self {
             name,
             declares: Vec::new(),
             visibility,
-            document,
+            doc,
             functions: Vec::new(),
             structs: Vec::new(),
             traits: Vec::new(),
@@ -75,7 +75,7 @@ impl ModuleUnit {
 /// let file = FileUnit::new(PathBuf::from("src/lib.rs"));
 ///
 /// assert_eq!(file.path, PathBuf::from("src/lib.rs"));
-/// assert!(file.document.is_none());
+/// assert!(file.doc.is_none());
 /// assert!(file.declares.is_empty());
 /// assert!(file.modules.is_empty());
 /// assert!(file.functions.is_empty());
@@ -103,7 +103,7 @@ impl FileUnit {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
-            document: None,
+            doc: None,
             declares: Vec::new(),
             modules: Vec::new(),
             functions: Vec::new(),

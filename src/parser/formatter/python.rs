@@ -242,7 +242,7 @@ mod tests {
             } else {
                 Visibility::Private
             },
-            documentation: Some(format!("Documentation for {}", name)),
+            doc: Some(format!("Documentation for {}", name)),
             signature: Some(format!("def {}():", name)),
             body: Some("    pass".to_string()),
             source: Some(format!("def {}():\n    pass", name)),
@@ -273,9 +273,10 @@ mod tests {
             } else {
                 Visibility::Private
             },
-            documentation: Some(format!("Documentation for {}", name)),
+            doc: Some(format!("Documentation for {}", name)),
             methods,
             source: Some(format!("class {}:\n    pass", name)),
+            fields: Vec::new(),
         }
     }
 
@@ -304,7 +305,7 @@ mod tests {
         ModuleUnit {
             name: name.to_string(),
             attributes,
-            document: Some(format!("Documentation for module {}", name)),
+            doc: Some(format!("Documentation for module {}", name)),
             visibility: if is_public {
                 Visibility::Public
             } else {

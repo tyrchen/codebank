@@ -109,7 +109,7 @@ impl TypeScriptParser {
                 name,
                 source: Some(func_source),
                 visibility,
-                documentation,
+                doc: documentation,
                 signature: Some(signature),
                 body: None,
                 attributes: vec![],
@@ -186,7 +186,7 @@ impl TypeScriptParser {
                 name,
                 source: Some(func_source),
                 visibility,
-                documentation,
+                doc: documentation,
                 signature,
                 body: None,
                 attributes: vec![],
@@ -286,7 +286,7 @@ impl TypeScriptParser {
                                     name: method_name,
                                     source: Some(method_source),
                                     visibility: method_visibility,
-                                    documentation: None, // Could extract doc comments for methods too
+                                    doc: None, // Could extract doc comments for methods too
                                     signature: Some(signature),
                                     body: None,
                                     attributes: vec![],
@@ -302,8 +302,9 @@ impl TypeScriptParser {
                 source: Some(class_source),
                 head: format!("class {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
                 methods,
+                fields: Vec::new(),
                 attributes: vec![],
             });
         }
@@ -373,7 +374,7 @@ impl TypeScriptParser {
                                     name: method_name,
                                     source: Some(method_source),
                                     visibility: Visibility::Public,
-                                    documentation: None,
+                                    doc: None,
                                     signature: Some(signature),
                                     body: None,
                                     attributes: vec![],
@@ -389,8 +390,9 @@ impl TypeScriptParser {
                 source: Some(interface_source),
                 head: format!("interface {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
                 methods,
+                fields: Vec::new(),
                 attributes: vec![],
             });
         }
@@ -421,8 +423,9 @@ impl TypeScriptParser {
                 source: Some(type_source),
                 head: format!("type {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
                 methods: vec![],
+                fields: Vec::new(),
                 attributes: vec![],
             });
         }
@@ -447,8 +450,9 @@ impl TypeScriptParser {
                 source: Some(enum_source),
                 head: format!("enum {}", name),
                 visibility,
-                documentation,
+                doc: documentation,
                 methods: vec![],
+                fields: Vec::new(),
                 attributes: vec![],
             });
         }
@@ -607,7 +611,7 @@ impl LanguageParser for TypeScriptParser {
         if let Some(child) = root_node.child(0) {
             if child.kind() == "comment" {
                 if let Some(doc) = extract_doc_comment(child, source_bytes) {
-                    file_unit.document = Some(doc);
+                    file_unit.doc = Some(doc);
                 }
             }
         }
@@ -830,7 +834,7 @@ mod tests {
         assert_eq!(func.name, "add");
         assert_eq!(func.visibility, Visibility::Private);
         assert!(func
-            .documentation
+            .doc
             .as_ref()
             .unwrap()
             .contains("A function that adds two numbers"));
@@ -856,7 +860,7 @@ mod tests {
         assert_eq!(func.name, "multiply");
         assert_eq!(func.visibility, Visibility::Public);
         // Only check documentation if it exists
-        if let Some(doc) = &func.documentation {
+        if let Some(doc) = &func.doc {
             assert!(doc.contains("An exported function"));
         }
 
@@ -876,7 +880,7 @@ mod tests {
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "arrowFunc");
         assert_eq!(func.visibility, Visibility::Private);
-        if let Some(doc) = &func.documentation {
+        if let Some(doc) = &func.doc {
             assert!(doc.contains("Arrow function"));
         }
 
@@ -914,11 +918,7 @@ mod tests {
         assert_eq!(class.name, "Person");
         assert_eq!(class.head, "class Person");
         assert_eq!(class.visibility, Visibility::Private);
-        assert!(class
-            .documentation
-            .as_ref()
-            .unwrap()
-            .contains("A person class"));
+        assert!(class.doc.as_ref().unwrap().contains("A person class"));
 
         // TODO: When method extraction is implemented, test for those as well
 
@@ -945,7 +945,7 @@ mod tests {
         assert_eq!(interface.head, "interface Shape");
         assert_eq!(interface.visibility, Visibility::Public);
         assert!(interface
-            .documentation
+            .doc
             .as_ref()
             .unwrap()
             .contains("Represents a shape"));
@@ -971,7 +971,7 @@ mod tests {
         assert_eq!(type_alias.head, "type Point");
         assert_eq!(type_alias.visibility, Visibility::Private);
         assert!(type_alias
-            .documentation
+            .doc
             .as_ref()
             .unwrap()
             .contains("Represents a point"));
@@ -999,7 +999,7 @@ mod tests {
         assert_eq!(enum_unit.head, "enum Direction");
         assert_eq!(enum_unit.visibility, Visibility::Private);
         assert!(enum_unit
-            .documentation
+            .doc
             .as_ref()
             .unwrap()
             .contains("Represents directions"));
@@ -1059,17 +1059,13 @@ mod tests {
 
         let file_unit = parse_ts_str(ts_code)?;
 
-        assert!(file_unit.document.is_some());
+        assert!(file_unit.doc.is_some());
         assert!(file_unit
-            .document
+            .doc
             .as_ref()
             .unwrap()
             .contains("file-level documentation"));
-        assert!(file_unit
-            .document
-            .as_ref()
-            .unwrap()
-            .contains("@fileoverview"));
+        assert!(file_unit.doc.as_ref().unwrap().contains("@fileoverview"));
 
         Ok(())
     }
@@ -1140,7 +1136,7 @@ mod tests {
         let file_unit = parse_ts_str(ts_code)?;
 
         // Check all expected components
-        assert!(file_unit.document.is_some());
+        assert!(file_unit.doc.is_some());
         assert_eq!(file_unit.declares.len(), 1); // One import
         assert_eq!(file_unit.functions.len(), 2); // getUser and formatUser
         assert_eq!(file_unit.structs.len(), 4); // User interface, ApiResponse type, UserImpl class, Status enum

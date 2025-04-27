@@ -17,7 +17,7 @@ mod tests {
             } else {
                 Visibility::Private
             },
-            documentation: Some(format!("Documentation for {}", name)),
+            doc: Some(format!("Documentation for {}", name)),
             signature: Some(format!("fn {}()", name)),
             body: Some("{ /* function body */ }".to_string()),
             source: Some(format!("fn {}() {{ /* function body */ }}", name)),
@@ -49,7 +49,8 @@ mod tests {
             head: format!("{} struct {}", visibility.as_str(LanguageType::Rust), name),
             attributes: Vec::new(),
             visibility,
-            documentation: Some(format!("Documentation for {}", name)),
+            doc: Some(format!("Documentation for {}", name)),
+            fields: Vec::new(),
             methods,
             source: Some(format!("struct {} {{ field: i32 }}", name)),
         }
@@ -80,7 +81,7 @@ mod tests {
         ModuleUnit {
             name: name.to_string(),
             attributes,
-            document: Some(format!("Documentation for module {}", name)),
+            doc: Some(format!("Documentation for module {}", name)),
             visibility: if is_public {
                 Visibility::Public
             } else {
@@ -118,7 +119,7 @@ mod tests {
 
         ImplUnit {
             attributes: Vec::new(),
-            documentation: Some("Documentation for implementation".to_string()),
+            doc: Some("Documentation for implementation".to_string()),
             head,
             methods,
             source: Some(source),
@@ -129,9 +130,7 @@ mod tests {
     fn create_private_methods_impl() -> ImplUnit {
         ImplUnit {
             attributes: Vec::new(),
-            documentation: Some(
-                "Documentation for implementation with private methods".to_string(),
-            ),
+            doc: Some("Documentation for implementation with private methods".to_string()),
             head: "impl StructWithPrivateMethods".to_string(),
             methods: vec![
                 create_test_function("private_method1", false, false),

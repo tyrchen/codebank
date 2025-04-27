@@ -87,6 +87,40 @@ impl RustParser {
         Ok(Self { parser })
     }
 
+    // Helper function to parse the head (declaration line) of an item
+    fn parse_item_head(
+        &self,
+        node: Node,
+        source_code: &str,
+        item_type: &str,
+        visibility: &Visibility,
+        name: &str,
+    ) -> String {
+        if let Some(src) = get_node_text(node, source_code) {
+            if let Some(body_start_idx) = src.find('{') {
+                src[0..body_start_idx].trim().to_string()
+            } else if let Some(semi_idx) = src.find(';') {
+                // Handle unit items like `struct Unit;`
+                src[0..=semi_idx].trim().to_string()
+            } else {
+                // Fallback, might occur for malformed code or items without bodies/semicolons
+                format!(
+                    "{} {} {}",
+                    visibility.as_str(LanguageType::Rust),
+                    item_type,
+                    name
+                )
+            }
+        } else {
+            format!(
+                "{} {} {}",
+                visibility.as_str(LanguageType::Rust),
+                item_type,
+                name
+            )
+        }
+    }
+
     // Helper function to extract documentation from comments preceding a node
     fn extract_documentation(&self, node: Node, source_code: &str) -> Option<String> {
         let mut doc_comments = Vec::new();
@@ -181,7 +215,7 @@ impl RustParser {
         Ok(FunctionUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             source,
             signature,
             body,
@@ -201,7 +235,7 @@ impl RustParser {
         let mut module = ModuleUnit {
             name,
             visibility,
-            document,
+            doc: document,
             source,
             attributes,
             ..Default::default()
@@ -273,26 +307,17 @@ impl RustParser {
         let attributes = extract_attributes(node, source_code);
         let source = get_node_text(node, source_code);
 
-        // Parse enum head (declaration line)
-        let head = if let Some(src) = &source {
-            if let Some(body_start_idx) = src.find('{') {
-                src[0..body_start_idx].trim().to_string()
-            } else if let Some(semi_idx) = src.find(';') {
-                src[0..=semi_idx].trim().to_string()
-            } else {
-                format!("{} enum {}", visibility.as_str(LanguageType::Rust), name)
-            }
-        } else {
-            format!("{} enum {}", visibility.as_str(LanguageType::Rust), name)
-        };
+        // Parse enum head using the helper, passing visibility by reference
+        let head = self.parse_item_head(node, source_code, "enum", &visibility, &name);
 
         let struct_unit = StructUnit {
             name,
             head,
-            visibility,
-            documentation,
+            visibility, // Use the original visibility here
+            doc: documentation,
             source,
             attributes,
+            fields: Vec::new(), // Added fields initialization
             methods: Vec::new(),
         };
 
@@ -309,20 +334,8 @@ impl RustParser {
         let source = get_node_text(node, source_code);
         // let mut fields = Vec::new(); // Commented out: Requires FieldUnit/StructUnit changes
 
-        // Parse struct head (declaration line)
-        let head = if let Some(src) = &source {
-            if let Some(body_start_idx) = src.find('{') {
-                src[0..body_start_idx].trim().to_string()
-            } else if let Some(semi_idx) = src.find(';') {
-                // Handle unit structs like `struct Unit;`
-                src[0..=semi_idx].trim().to_string()
-            } else {
-                // Fallback, might occur for malformed code
-                format!("{} struct {}", visibility.as_str(LanguageType::Rust), name)
-            }
-        } else {
-            format!("{} struct {}", visibility.as_str(LanguageType::Rust), name)
-        };
+        // Parse struct head using the helper, passing visibility by reference
+        let head = self.parse_item_head(node, source_code, "struct", &visibility, &name);
 
         // Parse fields from the body - Commented out: Requires FieldUnit/StructUnit changes
         /*
@@ -349,7 +362,7 @@ impl RustParser {
                         name: field_name,
                         type_info: field_type,
                         visibility: field_visibility,
-                        documentation: field_documentation,
+                        doc: field_documentation,
                         attributes: field_attributes,
                         source: field_source,
                     });
@@ -362,11 +375,11 @@ impl RustParser {
         let struct_unit = StructUnit {
             name,
             head,
-            visibility,
-            documentation,
+            visibility, // Use the original visibility here
+            doc: documentation,
             source,
             attributes,
-            // fields, // Commented out: Add this field here later
+            fields: Vec::new(),  // Added fields initialization
             methods: Vec::new(), // Methods are parsed in impl blocks, not here
         };
 
@@ -404,7 +417,7 @@ impl RustParser {
         Ok(TraitUnit {
             name,
             visibility,
-            documentation,
+            doc: documentation,
             source,
             attributes,
             methods,
@@ -453,7 +466,7 @@ impl RustParser {
         }
 
         Ok(ImplUnit {
-            documentation,
+            doc: documentation,
             head, // Use parsed head
             source,
             attributes,
@@ -478,40 +491,25 @@ impl LanguageParser for RustParser {
         file_unit.source = Some(source_code.clone());
 
         // Process the module document comment at the top of the file
-        let mut file_doc_comments = Vec::new();
-        let mut current_node = root_node.child(0);
+        // Find the first non-comment, non-attribute node to pass to extract_documentation
+        let first_item_node = root_node.children(&mut root_node.walk()).find(|node| {
+            let kind = node.kind();
+            kind != "line_comment"
+                && kind != "block_comment"
+                && kind != "attribute_item"
+                && kind != "inner_attribute_item"
+        });
 
-        // Iterate through nodes at the start of the file to find documentation
-        while let Some(node) = current_node {
-            if node.kind() == "line_comment" {
-                if let Some(comment) = get_node_text(node, &source_code) {
-                    if comment.starts_with("///") {
-                        let cleaned = comment.trim_start_matches("///").trim().to_string();
-                        file_doc_comments.push(cleaned);
-                        current_node = node.next_sibling();
-                        continue;
-                    }
-                }
-            } else if node.kind() == "block_comment" {
-                if let Some(comment) = get_node_text(node, &source_code) {
-                    if comment.starts_with("/**") {
-                        let lines: Vec<&str> = comment.lines().collect();
-                        for line in lines.iter().skip(1).take(lines.len().saturating_sub(2)) {
-                            let cleaned = line.trim_start_matches('*').trim().to_string();
-                            if !cleaned.is_empty() {
-                                file_doc_comments.push(cleaned);
-                            }
-                        }
-                        current_node = node.next_sibling();
-                        continue;
-                    }
-                }
+        if let Some(first_node) = first_item_node {
+            file_unit.doc = self.extract_documentation(first_node, &source_code);
+        } else {
+            // If the file potentially only contains comments/attributes, try extracting from the last one
+            if let Some(last_node) = root_node.children(&mut root_node.walk()).last() {
+                file_unit.doc = self.extract_documentation(
+                    last_node.next_sibling().unwrap_or(last_node),
+                    &source_code,
+                );
             }
-            break;
-        }
-
-        if !file_doc_comments.is_empty() {
-            file_unit.document = Some(file_doc_comments.join("\n"));
         }
 
         // Process top-level items in the file
@@ -691,9 +689,9 @@ mod tests {
             .expect("GenericTrait not found at file level");
 
         // Check documentation
-        assert!(generic_trait.documentation.is_some());
+        assert!(generic_trait.doc.is_some());
         assert!(generic_trait
-            .documentation
+            .doc
             .as_ref()
             .unwrap()
             .contains("public generic trait"));
@@ -711,9 +709,9 @@ mod tests {
             .find(|m| m.name == "method")
             .expect("method not found in GenericTrait");
 
-        assert!(method.documentation.is_some());
+        assert!(method.doc.is_some());
         assert!(method
-            .documentation
+            .doc
             .as_ref()
             .unwrap()
             .contains("Method documentation"));
