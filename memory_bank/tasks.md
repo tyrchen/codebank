@@ -10,9 +10,9 @@
 - [x] Create basic AST traversal mechanism
 - [x] Implement function parsing
 - [x] Implement module parsing
-- [ ] Implement struct/enum parsing
-- [ ] Improve documentation extraction
-- [ ] Support module structure and imports
+- [x] Implement struct/enum parsing
+- [x] Improve documentation extraction
+- [x] Support module structure and imports
 
 ### Task 2: Implement Bank Trait
 **Description**: Implement the Bank trait for code generation.

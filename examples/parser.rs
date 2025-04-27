@@ -4,7 +4,6 @@ use anyhow::Result;
 use codebank::{CParser, LanguageParser, PythonParser, RustParser, TypeScriptParser};
 
 const C: &str = include_str!("../fixtures/sample.c");
-const TS: &str = include_str!("../fixtures/sample.ts");
 
 fn main() -> Result<()> {
     let mut rust_parser = RustParser::try_new()?;
@@ -28,9 +27,11 @@ fn main() -> Result<()> {
 
     println!("C:\n{:?}", tree);
 
-    let tree = ts_parser.parse(TS, None).unwrap();
+    let data = ts_parser
+        .parse_file(Path::new("fixtures/sample.ts"))
+        .unwrap();
 
-    println!("TypeScript:\n{:?}", tree);
+    println!("TypeScript:\n{:#?}", data);
 
     Ok(())
 }
