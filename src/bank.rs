@@ -1,9 +1,9 @@
 use crate::{
-    parser::{
-        formatter::Formatter, CppParser, FileUnit, LanguageParser, LanguageType, PythonParser,
-        RustParser, TypeScriptParser,
-    },
     Bank, BankStrategy, Error, Result,
+    parser::{
+        CppParser, FileUnit, LanguageParser, LanguageType, PythonParser, RustParser,
+        TypeScriptParser, formatter::Formatter,
+    },
 };
 use ignore::Walk;
 use regex::Regex;

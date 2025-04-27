@@ -1103,23 +1103,29 @@ mod tests {
             .expect("max template function not found");
 
         // Check function properties
-        assert!(max_function
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains(expected_signature_contains));
-        assert!(max_function
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("max(T a, T b)"));
+        assert!(
+            max_function
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains(expected_signature_contains)
+        );
+        assert!(
+            max_function
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("max(T a, T b)")
+        );
 
         // Check body contains the expected code
-        assert!(max_function
-            .body
-            .as_ref()
-            .unwrap()
-            .contains(expected_body_contains));
+        assert!(
+            max_function
+                .body
+                .as_ref()
+                .unwrap()
+                .contains(expected_body_contains)
+        );
     }
 
     #[test]
@@ -1132,49 +1138,67 @@ mod tests {
         let file_unit = result.unwrap();
 
         // Check includes
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("<stdio.h>")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("<stdlib.h>")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("<string.h>")));
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("<stdio.h>"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("<stdlib.h>"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("<string.h>"))
+        );
 
         // Check defines
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("MAX_SIZE 100")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("MIN(a, b)")));
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("MAX_SIZE 100"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("MIN(a, b)"))
+        );
 
         // Check functions
         assert!(file_unit.functions.iter().any(|f| f.name == "main"));
         assert!(file_unit.functions.iter().any(|f| f.name == "print_hello"));
         assert!(file_unit.functions.iter().any(|f| f.name == "add_numbers"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "process_array"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "handle_pointers"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "use_control_flow"));
-        assert!(file_unit
-            .functions
-            .iter()
-            .any(|f| f.name == "demonstrate_memory_allocation"));
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "process_array")
+        );
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "handle_pointers")
+        );
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "use_control_flow")
+        );
+        assert!(
+            file_unit
+                .functions
+                .iter()
+                .any(|f| f.name == "demonstrate_memory_allocation")
+        );
 
         // Check template function
         assert!(file_unit.functions.iter().any(|f| f.name == "max"));
@@ -1185,14 +1209,18 @@ mod tests {
         assert!(file_unit.structs.iter().any(|s| s.name == "Rectangle"));
 
         // Check function declarations
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("void print_hello(void);")));
-        assert!(file_unit
-            .declares
-            .iter()
-            .any(|d| d.source.contains("int add_numbers(int a, int b);")));
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("void print_hello(void);"))
+        );
+        assert!(
+            file_unit
+                .declares
+                .iter()
+                .any(|d| d.source.contains("int add_numbers(int a, int b);"))
+        );
 
         // Check typedefs and enums
         assert!(file_unit.structs.iter().any(|s| s.name == "Point"));
@@ -1216,11 +1244,13 @@ mod tests {
             .expect("add_numbers function not found");
 
         // Check signature and body
-        assert!(add_numbers
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("int add_numbers(int a, int b)"));
+        assert!(
+            add_numbers
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("int add_numbers(int a, int b)")
+        );
         assert!(add_numbers.body.as_ref().unwrap().contains("return a + b;"));
 
         // Check visibility
@@ -1257,15 +1287,19 @@ mod tests {
             .expect("area method not found");
 
         // Check method signature and body
-        assert!(area_method
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("double area() const override"));
-        assert!(area_method
-            .body
-            .as_ref()
-            .unwrap()
-            .contains("return 3.14159 * radius * radius;"));
+        assert!(
+            area_method
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("double area() const override")
+        );
+        assert!(
+            area_method
+                .body
+                .as_ref()
+                .unwrap()
+                .contains("return 3.14159 * radius * radius;")
+        );
     }
 }

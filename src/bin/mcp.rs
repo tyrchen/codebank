@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use codebank::mcp::CodeBankMcp;
 use rmcp::{
-    transport::{sse_server::SseServerConfig, stdio, SseServer},
     ServiceExt,
+    transport::{SseServer, sse_server::SseServerConfig, stdio},
 };
 
 #[derive(Parser)]
@@ -79,7 +79,7 @@ async fn run_sse_mode(port: u16) -> anyhow::Result<()> {
     tokio::signal::ctrl_c().await?;
     tracing::info!("Ctrl-C received, shutting down...");
     service_ct.cancel(); // Cancel the service
-                         // Cancel the server itself using the main token
+    // Cancel the server itself using the main token
     ct_main.cancel();
 
     Ok(())

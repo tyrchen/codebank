@@ -895,11 +895,12 @@ mod tests {
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "add");
         assert_eq!(func.visibility, Visibility::Private);
-        assert!(func
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("A function that adds two numbers"));
+        assert!(
+            func.doc
+                .as_ref()
+                .unwrap()
+                .contains("A function that adds two numbers")
+        );
 
         Ok(())
     }
@@ -1006,11 +1007,13 @@ mod tests {
         assert_eq!(interface.name, "Shape");
         assert_eq!(interface.head, "interface Shape");
         assert_eq!(interface.visibility, Visibility::Public);
-        assert!(interface
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("Represents a shape"));
+        assert!(
+            interface
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Represents a shape")
+        );
 
         Ok(())
     }
@@ -1032,11 +1035,13 @@ mod tests {
         assert_eq!(type_alias.name, "Point");
         assert_eq!(type_alias.head, "type Point");
         assert_eq!(type_alias.visibility, Visibility::Private);
-        assert!(type_alias
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("Represents a point"));
+        assert!(
+            type_alias
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Represents a point")
+        );
 
         Ok(())
     }
@@ -1060,11 +1065,13 @@ mod tests {
         assert_eq!(enum_unit.name, "Direction");
         assert_eq!(enum_unit.head, "enum Direction");
         assert_eq!(enum_unit.visibility, Visibility::Private);
-        assert!(enum_unit
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("Represents directions"));
+        assert!(
+            enum_unit
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Represents directions")
+        );
 
         Ok(())
     }
@@ -1122,11 +1129,13 @@ mod tests {
         let file_unit = parse_ts_str(ts_code)?;
 
         assert!(file_unit.doc.is_some());
-        assert!(file_unit
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("file-level documentation"));
+        assert!(
+            file_unit
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("file-level documentation")
+        );
         assert!(file_unit.doc.as_ref().unwrap().contains("@fileoverview"));
 
         Ok(())
@@ -1254,11 +1263,12 @@ mod tests {
         // Check regular function
         let func = &file_unit.functions[0];
         assert_eq!(func.name, "publicFunction");
-        assert!(func
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("function publicFunction(param: string): string"));
+        assert!(
+            func.signature
+                .as_ref()
+                .unwrap()
+                .contains("function publicFunction(param: string): string")
+        );
 
         // Check arrow function
         let arrow = &file_unit.functions[1];
@@ -1287,16 +1297,20 @@ mod tests {
         // Check complex function
         let complex = &file_unit.functions[4];
         assert_eq!(complex.name, "complexFunc");
-        assert!(complex
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("function complexFunc("));
-        assert!(complex
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("): Promise<Record<string, unknown>>"));
+        assert!(
+            complex
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("function complexFunc(")
+        );
+        assert!(
+            complex
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("): Promise<Record<string, unknown>>")
+        );
 
         Ok(())
     }
@@ -1357,11 +1371,13 @@ mod tests {
             .iter()
             .find(|m| m.name == "constructor")
             .unwrap();
-        assert!(constructor
-            .signature
-            .as_ref()
-            .unwrap()
-            .starts_with("constructor("));
+        assert!(
+            constructor
+                .signature
+                .as_ref()
+                .unwrap()
+                .starts_with("constructor(")
+        );
 
         // Check public method
         let public_method = public_class
@@ -1562,11 +1578,13 @@ mod tests {
         let data_field = class.fields.iter().find(|f| f.name == "data").unwrap();
         assert_eq!(data_field.name, "data");
         assert!(data_field.doc.as_ref().unwrap().contains("The main data"));
-        assert!(data_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("public data: Map<string, number>"));
+        assert!(
+            data_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("public data: Map<string, number>")
+        );
 
         let init_field = class
             .fields
@@ -1575,11 +1593,13 @@ mod tests {
             .unwrap();
         assert_eq!(init_field.name, "_initialized");
         assert!(init_field.doc.is_none());
-        assert!(init_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("private _initialized: boolean"));
+        assert!(
+            init_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("private _initialized: boolean")
+        );
 
         let time_field = class
             .fields
@@ -1588,11 +1608,13 @@ mod tests {
             .unwrap();
         assert_eq!(time_field.name, "creationTime");
         assert!(time_field.doc.is_none());
-        assert!(time_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("readonly creationTime: Date"));
+        assert!(
+            time_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("readonly creationTime: Date")
+        );
 
         Ok(())
     }
@@ -1622,11 +1644,13 @@ mod tests {
             .unwrap();
         assert_eq!(api_field.name, "apiUrl");
         assert!(api_field.doc.as_ref().unwrap().contains("API endpoint URL"));
-        assert!(api_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("readonly apiUrl: string"));
+        assert!(
+            api_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("readonly apiUrl: string")
+        );
 
         let timeout_field = interface
             .fields
@@ -1635,11 +1659,13 @@ mod tests {
             .unwrap();
         assert_eq!(timeout_field.name, "timeout");
         assert!(timeout_field.doc.is_none());
-        assert!(timeout_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("timeout?: number"));
+        assert!(
+            timeout_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("timeout?: number")
+        );
 
         let retries_field = interface
             .fields
@@ -1648,11 +1674,13 @@ mod tests {
             .unwrap();
         assert_eq!(retries_field.name, "retries");
         assert!(retries_field.doc.is_none());
-        assert!(retries_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("retries: number"));
+        assert!(
+            retries_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("retries: number")
+        );
 
         Ok(())
     }

@@ -681,11 +681,13 @@ mod tests {
 
         // Check documentation
         assert!(generic_trait.doc.is_some());
-        assert!(generic_trait
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("public generic trait"));
+        assert!(
+            generic_trait
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("public generic trait")
+        );
 
         // Check methods are parsed
         assert!(
@@ -701,17 +703,21 @@ mod tests {
             .expect("method not found in GenericTrait");
 
         assert!(method.doc.is_some());
-        assert!(method
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("Method documentation"));
+        assert!(
+            method
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Method documentation")
+        );
         assert!(method.signature.is_some());
-        assert!(method
-            .signature
-            .as_ref()
-            .unwrap()
-            .contains("fn method(&self, value: T) -> T;"));
+        assert!(
+            method
+                .signature
+                .as_ref()
+                .unwrap()
+                .contains("fn method(&self, value: T) -> T;")
+        );
         assert!(method.body.is_none()); // Trait methods often have no body
         assert_eq!(
             method.visibility,
@@ -781,17 +787,21 @@ mod tests {
             .expect("public_field not found");
 
         assert!(public_field.doc.is_some());
-        assert!(public_field
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("A public field"));
+        assert!(
+            public_field
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("A public field")
+        );
         assert!(public_field.attributes.is_empty()); // Assuming no attributes for this field
-        assert!(public_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("pub public_field: String"));
+        assert!(
+            public_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("pub public_field: String")
+        );
 
         // Check details of the second field (_private_field)
         let private_field = struct_with_fields
@@ -801,17 +811,21 @@ mod tests {
             .expect("_private_field not found");
 
         assert!(private_field.doc.is_some());
-        assert!(private_field
-            .doc
-            .as_ref()
-            .unwrap()
-            .contains("A private field"));
+        assert!(
+            private_field
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("A private field")
+        );
         assert!(!private_field.attributes.is_empty()); // Check for attribute
         assert!(private_field.attributes[0].contains("#[allow(dead_code)]"));
-        assert!(private_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("_private_field: i32"));
+        assert!(
+            private_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("_private_field: i32")
+        );
     }
 }

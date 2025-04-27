@@ -724,8 +724,10 @@ mod tests {
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
         assert!(result_summary_regular.contains("Regular function documentation"));
-        assert!(result_summary_regular
-            .contains(&rules.format_signature(&regular_sig, Some(&regular_sig))));
+        assert!(
+            result_summary_regular
+                .contains(&rules.format_signature(&regular_sig, Some(&regular_sig)))
+        );
         assert!(!result_summary_regular.contains("{ true }")); // Should not contain body
     }
 

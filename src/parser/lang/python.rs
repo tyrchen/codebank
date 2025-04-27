@@ -550,29 +550,35 @@ class MyClass:
         let name_field = class.fields.iter().find(|f| f.name == "name").unwrap();
         assert_eq!(name_field.name, "name");
         assert!(name_field.doc.is_none()); // Currently not parsing field docs
-        assert!(name_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("self.name = name"));
+        assert!(
+            name_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("self.name = name")
+        );
 
         // Check _value field
         let value_field = class.fields.iter().find(|f| f.name == "_value").unwrap();
         assert_eq!(value_field.name, "_value");
-        assert!(value_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("self._value = value"));
+        assert!(
+            value_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("self._value = value")
+        );
 
         // Check literal field
         let literal_field = class.fields.iter().find(|f| f.name == "literal").unwrap();
         assert_eq!(literal_field.name, "literal");
-        assert!(literal_field
-            .source
-            .as_ref()
-            .unwrap()
-            .contains("self.literal = \"hello\""));
+        assert!(
+            literal_field
+                .source
+                .as_ref()
+                .unwrap()
+                .contains("self.literal = \"hello\"")
+        );
 
         // Ensure class_var was not parsed as a field
         assert!(!class.fields.iter().any(|f| f.name == "class_var"));

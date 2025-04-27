@@ -1,11 +1,12 @@
 use crate::{Bank, BankStrategy, CodeBank};
 use anyhow::Result;
 use rmcp::{
+    Error as McpError, ServerHandler,
     model::{CallToolResult, Content, ErrorCode, ServerCapabilities, ServerInfo},
-    schemars, tool, Error as McpError, ServerHandler,
+    schemars, tool,
 };
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// CodeBank MCP server implementation
 #[derive(Debug, Clone)]
@@ -48,41 +49,6 @@ impl CodeBankMcp {
         Self
     }
 
-    /// Generate code bank from a directory
-    pub fn generate<P: AsRef<Path>>(&self, path: P, strategy: &str) -> Result<()> {
-        // Validate strategy
-        let bank_strategy = self.parse_strategy(strategy)?;
-
-        // Generate the code bank
-        let codebank = CodeBank::try_new()?;
-        let content = codebank.generate(path.as_ref(), bank_strategy)?;
-
-        // Print the content to stdout
-        println!("{}", content);
-
-        Ok(())
-    }
-
-    /// Generate code bank and save to file
-    pub fn generate_file<P1: AsRef<Path>, P2: AsRef<Path>>(
-        &self,
-        path: P1,
-        strategy: &str,
-        output: P2,
-    ) -> Result<()> {
-        // Validate strategy
-        let bank_strategy = self.parse_strategy(strategy)?;
-
-        // Generate the code bank
-        let codebank = CodeBank::try_new()?;
-        let content = codebank.generate(path.as_ref(), bank_strategy)?;
-
-        // Write to file
-        fs::write(output, content)?;
-
-        Ok(())
-    }
-
     /// Parse and validate the strategy parameter
     fn parse_strategy(&self, strategy: &str) -> Result<BankStrategy> {
         match strategy {
@@ -99,7 +65,10 @@ impl CodeBankMcp {
     #[tool(
         description = "Generate code bank from source files. Helps understand codebase structure, get current code status, summarize code functionality. Useful for code review, onboarding, and maintaining codebase overview."
     )]
-    async fn gen(&self, #[tool(aggr)] req: GenerateRequest) -> Result<CallToolResult, McpError> {
+    async fn generate(
+        &self,
+        #[tool(aggr)] req: GenerateRequest,
+    ) -> Result<CallToolResult, McpError> {
         let path = PathBuf::from(&req.path);
 
         // Validate path
@@ -145,7 +114,7 @@ impl CodeBankMcp {
     #[tool(
         description = "Generate code bank from source files and save to output file. Helps understand codebase structure, get current code status, summarize code functionality. Useful for code review, onboarding, and maintaining codebase overview."
     )]
-    async fn gen_file(
+    async fn generate_file(
         &self,
         #[tool(aggr)] req: GenerateFileRequest,
     ) -> Result<CallToolResult, McpError> {
