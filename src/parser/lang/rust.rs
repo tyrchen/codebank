@@ -307,20 +307,58 @@ impl RustParser {
         let documentation = self.extract_documentation(node, source_code);
         let attributes = extract_attributes(node, source_code);
         let source = get_node_text(node, source_code);
+        // let mut fields = Vec::new(); // Commented out: Requires FieldUnit/StructUnit changes
 
         // Parse struct head (declaration line)
         let head = if let Some(src) = &source {
             if let Some(body_start_idx) = src.find('{') {
                 src[0..body_start_idx].trim().to_string()
             } else if let Some(semi_idx) = src.find(';') {
+                // Handle unit structs like `struct Unit;`
                 src[0..=semi_idx].trim().to_string()
             } else {
+                // Fallback, might occur for malformed code
                 format!("{} struct {}", visibility.as_str(LanguageType::Rust), name)
             }
         } else {
             format!("{} struct {}", visibility.as_str(LanguageType::Rust), name)
         };
 
+        // Parse fields from the body - Commented out: Requires FieldUnit/StructUnit changes
+        /*
+        if let Some(body_node) = node
+            .children(&mut node.walk())
+            .find(|child| child.kind() == "field_declaration_list")
+        {
+            for field_decl in body_node.children(&mut body_node.walk()) {
+                if field_decl.kind() == "field_declaration" {
+                    let field_visibility = self.determine_visibility(field_decl, source_code);
+                    let field_documentation = self.extract_documentation(field_decl, source_code);
+                    let field_attributes = extract_attributes(field_decl, source_code);
+                    let field_source = get_node_text(field_decl, source_code);
+
+                    let field_name = get_child_node_text(field_decl, "field_identifier", source_code)
+                        .unwrap_or_default();
+                    // Type extraction can be complex, start simple
+                    let field_type = get_child_node_text(field_decl, "type_identifier", source_code)
+                         .or_else(|| get_child_node_text(field_decl, "generic_type", source_code)) // Try generic type too
+                         .or_else(|| get_child_node_text(field_decl, "primitive_type", source_code))
+                         .unwrap_or_else(|| "unknown_type".to_string()); // Fallback type
+
+                    fields.push(FieldUnit {
+                        name: field_name,
+                        type_info: field_type,
+                        visibility: field_visibility,
+                        documentation: field_documentation,
+                        attributes: field_attributes,
+                        source: field_source,
+                    });
+                }
+            }
+        }
+        */
+
+        // NOTE: Ensure StructUnit in src/parser/mod.rs has the `fields` field added.
         let struct_unit = StructUnit {
             name,
             head,
@@ -328,7 +366,8 @@ impl RustParser {
             documentation,
             source,
             attributes,
-            methods: Vec::new(),
+            // fields, // Commented out: Add this field here later
+            methods: Vec::new(), // Methods are parsed in impl blocks, not here
         };
 
         Ok(struct_unit)
@@ -344,17 +383,21 @@ impl RustParser {
         let source = get_node_text(node, source_code);
         let mut methods = Vec::new();
 
-        // Look for trait items (methods)
+        // Look for trait items (methods, associated types, consts)
         if let Some(block_node) = node
             .children(&mut node.walk())
             .find(|child| child.kind() == "declaration_list")
         {
             for item in block_node.children(&mut block_node.walk()) {
-                if item.kind() == "function_item" {
-                    if let Ok(method) = self.parse_function(item, source_code) {
+                // Check for both function definitions and signatures
+                if item.kind() == "function_item" || item.kind() == "function_signature_item" {
+                    if let Ok(mut method) = self.parse_function(item, source_code) {
+                        // Methods in traits are implicitly public
+                        method.visibility = Visibility::Public;
                         methods.push(method);
                     }
                 }
+                // TODO: Potentially parse associated_type_declaration, constant_item in the future
             }
         }
 
@@ -375,12 +418,6 @@ impl RustParser {
         let source = get_node_text(node, source_code);
         let mut methods = Vec::new();
 
-        let is_trait_impl = if let Some(source) = &source {
-            source.contains(" for ") && source.contains("impl ")
-        } else {
-            false
-        };
-
         // Parse impl head (declaration line)
         let head = if let Some(src) = &source {
             if let Some(body_start_idx) = src.find('{') {
@@ -388,11 +425,14 @@ impl RustParser {
             } else if let Some(semi_idx) = src.find(';') {
                 src[0..=semi_idx].trim().to_string()
             } else {
-                "impl".to_string()
+                "impl".to_string() // Fallback
             }
         } else {
-            "impl".to_string()
+            "impl".to_string() // Fallback
         };
+
+        // Check if head indicates a trait implementation
+        let is_trait_impl = head.contains(" for ");
 
         if let Some(block_node) = node
             .children(&mut node.walk())
@@ -401,18 +441,20 @@ impl RustParser {
             for item in block_node.children(&mut block_node.walk()) {
                 if item.kind() == "function_item" {
                     if let Ok(mut method) = self.parse_function(item, source_code) {
+                        // If this is a trait impl, methods are implicitly public
                         if is_trait_impl {
                             method.visibility = Visibility::Public;
                         }
                         methods.push(method);
                     }
                 }
+                // TODO: Parse associated types, consts within impls
             }
         }
 
         Ok(ImplUnit {
             documentation,
-            head: head.to_string(),
+            head, // Use parsed head
             source,
             attributes,
             methods,
@@ -635,5 +677,93 @@ mod tests {
             public_trait.is_some(),
             "PublicTrait not found or has incorrect name"
         );
+    }
+
+    #[test]
+    fn test_trait_with_methods() {
+        let file_unit = parse_fixture("sample.rs").unwrap();
+
+        // Find GenericTrait at the file level
+        let generic_trait = file_unit
+            .traits
+            .iter()
+            .find(|t| t.name == "GenericTrait")
+            .expect("GenericTrait not found at file level");
+
+        // Check documentation
+        assert!(generic_trait.documentation.is_some());
+        assert!(generic_trait
+            .documentation
+            .as_ref()
+            .unwrap()
+            .contains("public generic trait"));
+
+        // Check methods are parsed
+        assert!(
+            !generic_trait.methods.is_empty(),
+            "GenericTrait should have methods parsed"
+        );
+
+        // Check specific method details
+        let method = generic_trait
+            .methods
+            .iter()
+            .find(|m| m.name == "method")
+            .expect("method not found in GenericTrait");
+
+        assert!(method.documentation.is_some());
+        assert!(method
+            .documentation
+            .as_ref()
+            .unwrap()
+            .contains("Method documentation"));
+        assert!(method.signature.is_some());
+        assert!(method
+            .signature
+            .as_ref()
+            .unwrap()
+            .contains("fn method(&self, value: T) -> T;"));
+        assert!(method.body.is_none()); // Trait methods often have no body
+        assert_eq!(
+            method.visibility,
+            Visibility::Public,
+            "Trait methods should be Public"
+        );
+    }
+
+    #[test]
+    fn test_trait_impl_method_visibility() {
+        let file_unit = parse_fixture("sample.rs").unwrap();
+
+        // Find the impl block for GenericTrait<T> for GenericStruct<T>
+        let trait_impl = file_unit
+            .impls
+            .iter()
+            .find(|imp| {
+                imp.head
+                    .contains("impl<T> GenericTrait<T> for GenericStruct<T>")
+            })
+            .expect("GenericTrait implementation not found");
+
+        // Check that the impl block has methods
+        assert!(
+            !trait_impl.methods.is_empty(),
+            "GenericTrait impl should have methods"
+        );
+
+        // Find the method named "method"
+        let method = trait_impl
+            .methods
+            .iter()
+            .find(|m| m.name == "method")
+            .expect("method not found in GenericTrait impl");
+
+        // Assert that the method visibility is Public
+        assert_eq!(
+            method.visibility,
+            Visibility::Public,
+            "Trait impl methods should be Public"
+        );
+        assert!(method.body.is_some()); // Impl methods should have a body
     }
 }
