@@ -273,10 +273,19 @@ impl RustParser {
         let attributes = extract_attributes(node, source_code);
         let source = get_node_text(node, source_code);
 
-        // TODO: parse enum head
-        let head = format!("{} enum {}", visibility.as_str(LanguageType::Rust), name);
+        // Parse enum head (declaration line)
+        let head = if let Some(src) = &source {
+            if let Some(body_start_idx) = src.find('{') {
+                src[0..body_start_idx].trim().to_string()
+            } else if let Some(semi_idx) = src.find(';') {
+                src[0..=semi_idx].trim().to_string()
+            } else {
+                format!("{} enum {}", visibility.as_str(LanguageType::Rust), name)
+            }
+        } else {
+            format!("{} enum {}", visibility.as_str(LanguageType::Rust), name)
+        };
 
-        // Create struct representing this enum
         let struct_unit = StructUnit {
             name,
             head,
@@ -299,10 +308,19 @@ impl RustParser {
         let attributes = extract_attributes(node, source_code);
         let source = get_node_text(node, source_code);
 
-        // TODO: parse struct head
-        let head = format!("{} struct {}", visibility.as_str(LanguageType::Rust), name);
+        // Parse struct head (declaration line)
+        let head = if let Some(src) = &source {
+            if let Some(body_start_idx) = src.find('{') {
+                src[0..body_start_idx].trim().to_string()
+            } else if let Some(semi_idx) = src.find(';') {
+                src[0..=semi_idx].trim().to_string()
+            } else {
+                format!("{} struct {}", visibility.as_str(LanguageType::Rust), name)
+            }
+        } else {
+            format!("{} struct {}", visibility.as_str(LanguageType::Rust), name)
+        };
 
-        // Create the struct with basic details
         let struct_unit = StructUnit {
             name,
             head,
@@ -363,10 +381,19 @@ impl RustParser {
             false
         };
 
-        // TODO: parse impl head
-        let head = "";
+        // Parse impl head (declaration line)
+        let head = if let Some(src) = &source {
+            if let Some(body_start_idx) = src.find('{') {
+                src[0..body_start_idx].trim().to_string()
+            } else if let Some(semi_idx) = src.find(';') {
+                src[0..=semi_idx].trim().to_string()
+            } else {
+                "impl".to_string()
+            }
+        } else {
+            "impl".to_string()
+        };
 
-        // Look for implemented methods
         if let Some(block_node) = node
             .children(&mut node.walk())
             .find(|child| child.kind() == "declaration_list")

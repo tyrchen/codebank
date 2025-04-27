@@ -1,5 +1,7 @@
 use crate::parser::LanguageType;
 
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct FormatterRules {
     pub summary_ellipsis: &'static str,
     pub function_body_start_marker: &'static str,
@@ -19,7 +21,7 @@ const RUST_RULES: FormatterRules = FormatterRules {
 };
 
 const PYTHON_RULES: FormatterRules = FormatterRules {
-    summary_ellipsis: " ...",
+    summary_ellipsis: ": ...",
     function_body_start_marker: ":",
     function_body_end_marker: "",
     doc_marker: "#",
@@ -79,13 +81,23 @@ impl FormatterRules {
     }
 
     pub fn format_signature(&self, source: &str, signature: Option<&str>) -> String {
-        if let Some(sig) = signature {
-            format!("{}{}", sig.trim(), self.summary_ellipsis)
-        } else if let Some(idx) = source.find(self.function_body_start_marker) {
-            format!("{}{}", source[0..idx].trim(), self.summary_ellipsis)
+        let sig_to_use = signature.unwrap_or(source).trim();
+
+        // Find the start of the body marker if it exists
+        let body_start_marker_pos = if !self.function_body_start_marker.is_empty() {
+            sig_to_use.find(self.function_body_start_marker)
         } else {
-            source.to_string()
-        }
+            None
+        };
+
+        let clean_sig = if let Some(idx) = body_start_marker_pos {
+            sig_to_use[0..idx].trim_end()
+        } else {
+            sig_to_use
+        };
+
+        // Append the language-specific summary ellipsis
+        format!("{}{}", clean_sig, self.summary_ellipsis)
     }
 }
 
@@ -125,16 +137,16 @@ mod tests {
         let rules = FormatterRules::for_language(LanguageType::Rust);
 
         // Test Rust test function detection
-        assert!(rules.is_test_function(&vec!["#[test]".to_string()]));
-        assert!(rules.is_test_function(&vec!["#[cfg(test)]".to_string()]));
-        assert!(!rules.is_test_function(&vec!["#[derive(Debug)]".to_string()]));
+        assert!(rules.is_test_function(&["#[test]".to_string()]));
+        assert!(rules.is_test_function(&["#[cfg(test)]".to_string()]));
+        assert!(!rules.is_test_function(&["#[derive(Debug)]".to_string()]));
 
         let rules = FormatterRules::for_language(LanguageType::Python);
 
         // Test Python test function detection
-        assert!(rules.is_test_function(&vec!["@pytest.mark.test".to_string()]));
-        assert!(rules.is_test_function(&vec!["test_function".to_string()]));
-        assert!(!rules.is_test_function(&vec!["regular_function".to_string()]));
+        assert!(rules.is_test_function(&["@pytest.mark.test".to_string()]));
+        assert!(rules.is_test_function(&["test_function".to_string()]));
+        assert!(!rules.is_test_function(&["regular_function".to_string()]));
     }
 
     #[test]
@@ -142,15 +154,15 @@ mod tests {
         let rules = FormatterRules::for_language(LanguageType::Rust);
 
         // Test Rust test module detection
-        assert!(rules.is_test_module("tests", &vec![]));
-        assert!(rules.is_test_module("module", &vec!["#[cfg(test)]".to_string()]));
-        assert!(!rules.is_test_module("module", &vec![]));
+        assert!(rules.is_test_module("tests", &[]));
+        assert!(rules.is_test_module("module", &["#[cfg(test)]".to_string()]));
+        assert!(!rules.is_test_module("module", &[]));
 
         let rules = FormatterRules::for_language(LanguageType::Python);
 
         // Test Python test module detection
-        assert!(rules.is_test_module("test_module", &vec![]));
-        assert!(!rules.is_test_module("regular_module", &vec![]));
+        assert!(rules.is_test_module("test_module", &[]));
+        assert!(!rules.is_test_module("regular_module", &[]));
     }
 
     #[test]
@@ -163,14 +175,17 @@ mod tests {
             "fn test() { ... }"
         );
 
-        // Test without signature
+        // Test without signature, with body start marker
         assert_eq!(
             rules.format_signature("fn test() {", None),
             "fn test() { ... }"
         );
 
-        // Test without function end marker
-        assert_eq!(rules.format_signature("fn test()", None), "fn test()");
+        // Test without signature or body marker (e.g., trait method)
+        assert_eq!(
+            rules.format_signature("fn test()", None),
+            "fn test() { ... }"
+        );
 
         // Test with extra whitespace
         assert_eq!(
@@ -183,6 +198,10 @@ mod tests {
         // Test Python function signature
         assert_eq!(
             rules.format_signature("def test():", None),
+            "def test(): ..."
+        );
+        assert_eq!(
+            rules.format_signature("def test()", None), // No colon
             "def test(): ..."
         );
     }

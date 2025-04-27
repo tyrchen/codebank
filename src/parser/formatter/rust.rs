@@ -282,6 +282,7 @@ mod tests {
             .unwrap();
 
         // Only public methods should be included in regular impls
+        // Check the head extracted by the parser
         assert!(formatted.contains("impl SomeStruct"));
         assert!(formatted.contains("fn public_method"));
         assert!(!formatted.contains("fn private_method"));
@@ -296,6 +297,7 @@ mod tests {
             .unwrap();
 
         // Both public and private methods should be included in trait impls
+        // Check the head extracted by the parser
         assert!(formatted.contains("impl SomeTrait for SomeStruct"));
         assert!(formatted.contains("fn public_method"));
         assert!(formatted.contains("fn private_method"));

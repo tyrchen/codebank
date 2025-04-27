@@ -94,7 +94,7 @@ impl Bank for CodeBank {
         let mut file_units = Vec::new();
 
         // Walk through all files in the directory
-        for entry in Walk::new(root_dir).into_iter().filter_map(|e| e.ok()) {
+        for entry in Walk::new(root_dir).filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() {
                 // Try to parse the file with the appropriate parser

@@ -85,7 +85,7 @@ impl PythonFormatter for StructUnit {
                     // Extract class definition
                     if let Some(idx) = source.find(':') {
                         output.push_str(&source[0..=idx]);
-                        output.push_str("\n");
+                        output.push('\n');
                     }
                 }
                 // Format public methods only
@@ -93,7 +93,7 @@ impl PythonFormatter for StructUnit {
                     if method.visibility == crate::Visibility::Public {
                         output.push_str("    ");
                         output.push_str(&method.format_python(strategy)?);
-                        output.push_str("\n");
+                        output.push('\n');
                     }
                 }
             }
@@ -124,7 +124,7 @@ impl PythonFormatter for ModuleUnit {
                 // Include all declarations
                 for decl in &self.declares {
                     output.push_str(&decl.source);
-                    output.push_str("\n");
+                    output.push('\n');
                 }
                 // Format all non-test functions and classes
                 for function in &self.functions {
@@ -153,7 +153,7 @@ impl PythonFormatter for ModuleUnit {
                         let formatted = function.format_python(strategy)?;
                         if !formatted.is_empty() {
                             output.push_str(&formatted);
-                            output.push_str("\n");
+                            output.push('\n');
                         }
                     }
                 }
@@ -162,7 +162,7 @@ impl PythonFormatter for ModuleUnit {
                         let formatted = class.format_python(strategy)?;
                         if !formatted.is_empty() {
                             output.push_str(&formatted);
-                            output.push_str("\n");
+                            output.push('\n');
                         }
                     }
                 }
@@ -187,7 +187,7 @@ impl PythonFormatter for FileUnit {
                 // Add declarations first
                 for decl in &self.declares {
                     output.push_str(&decl.source);
-                    output.push_str("\n");
+                    output.push('\n');
                 }
 
                 // Add modules
@@ -384,17 +384,17 @@ mod tests {
         let formatted = public_class
             .format(&BankStrategy::Summary, LanguageType::Python)
             .unwrap();
-        assert!(formatted.contains("class PublicClass:"));
-        assert!(formatted.contains("def publicclass_method():"));
-        assert!(!formatted.contains("pass"));
-        assert!(formatted.contains("..."));
+        // Summary only shows head for classes
+        assert!(formatted.contains("class PublicClass: ..."));
+        assert!(!formatted.contains("publicclass_method")); // Methods shouldn't be in summary
+        assert!(!formatted.contains("privateclass_method"));
 
         // Private class
-        // let private_class = create_test_class("_PrivateClass", false);
-        // let formatted = private_class
-        //     .format(&BankStrategy::Summary, LanguageType::Python)
-        //     .unwrap();
-        // assert!(formatted.is_empty());
+        let private_class = create_test_class("PrivateClass", false);
+        let formatted = private_class
+            .format(&BankStrategy::Summary, LanguageType::Python)
+            .unwrap();
+        assert!(formatted.is_empty());
     }
 
     #[test]
@@ -413,17 +413,20 @@ mod tests {
         let formatted = module
             .format(&BankStrategy::NoTests, LanguageType::Python)
             .unwrap();
-        assert!(formatted.contains("def module_function():"));
-        assert!(formatted.contains("def _module_private_function():"));
-        assert!(formatted.contains("class ModuleClass:"));
+        // Check for essential elements
+        assert!(formatted.contains("def module_function"));
+        assert!(formatted.contains("class ModuleClass"));
         assert!(formatted.contains("from typing import List, Dict"));
+        assert!(formatted.contains("def _module_private_function")); // Check private function included
 
-        // Test module
+        // Test module - should also be processed by NoTests, skipping inner tests if any
         let test_module = create_test_module("test_module", true, true);
-        let formatted = test_module
+        let formatted_test = test_module
             .format(&BankStrategy::NoTests, LanguageType::Python)
             .unwrap();
-        assert!(formatted.is_empty());
+        assert!(!formatted_test.is_empty()); // Should not be empty
+        assert!(formatted_test.contains("def module_function")); // Check content is present
+        assert!(formatted_test.contains("class ModuleClass"));
     }
 
     #[test]

@@ -35,21 +35,25 @@ impl Formatter for FileUnit {
                     output.push('\n');
                 }
 
-                // Format each module
+                // Format each module (skip test modules)
                 for module in &self.modules {
-                    let formatted = module.format(strategy, language)?;
-                    if !formatted.is_empty() {
-                        output.push_str(&formatted);
-                        output.push('\n');
+                    if !rules.is_test_module(&module.name, &module.attributes) {
+                        let formatted = module.format(strategy, language)?;
+                        if !formatted.is_empty() {
+                            output.push_str(&formatted);
+                            output.push('\n');
+                        }
                     }
                 }
 
-                // Format each function
+                // Format each function (skip test functions)
                 for function in &self.functions {
-                    let formatted = function.format(strategy, language)?;
-                    if !formatted.is_empty() {
-                        output.push_str(&formatted);
-                        output.push('\n');
+                    if !rules.is_test_function(&function.attributes) {
+                        let formatted = function.format(strategy, language)?;
+                        if !formatted.is_empty() {
+                            output.push_str(&formatted);
+                            output.push('\n');
+                        }
                     }
                 }
 
@@ -146,8 +150,9 @@ impl Formatter for ModuleUnit {
         let mut output = String::new();
         let rules = FormatterRules::for_language(language);
 
-        // Skip test modules
-        if rules.is_test_module(&self.name, &self.attributes) {
+        // Skip test modules entirely for Summary strategy
+        if *strategy == BankStrategy::Summary && rules.is_test_module(&self.name, &self.attributes)
+        {
             return Ok(String::new());
         }
 
@@ -157,7 +162,7 @@ impl Formatter for ModuleUnit {
                     output.push_str(source);
                 }
             }
-            BankStrategy::NoTests | BankStrategy::Summary => {
+            BankStrategy::NoTests => {
                 // Add documentation
                 if let Some(doc) = &self.document {
                     for line in doc.lines() {
@@ -165,86 +170,171 @@ impl Formatter for ModuleUnit {
                     }
                 }
 
-                // Add attributes
+                // Add attributes (including test attributes for NoTests)
                 for attr in &self.attributes {
                     output.push_str(&format!("{}\n", attr));
                 }
 
-                // Public modules only for Summary
-                if *strategy == BankStrategy::NoTests || self.visibility == Visibility::Public {
-                    if language == LanguageType::Rust {
-                        // TODO: what about other languages?
-                        output.push_str(&format!("pub mod {} {{\n", self.name));
-                    }
+                // Write module head
+                output.push_str(&format!(
+                    "{} mod {} {{\n",
+                    self.visibility.as_str(language),
+                    self.name
+                ));
 
-                    // Add public functions
-                    for function in &self.functions {
-                        if *strategy == BankStrategy::NoTests
-                            || function.visibility == Visibility::Public
-                        {
-                            let function_formatted = function.format(strategy, language)?;
+                // Add declarations
+                for decl in &self.declares {
+                    output.push_str(&format!("    {}\n", decl.source));
+                }
+
+                // Format all functions (skip test functions)
+                for function in &self.functions {
+                    if !rules.is_test_function(&function.attributes) {
+                        let function_formatted = function.format(strategy, language)?;
+                        if !function_formatted.is_empty() {
                             output.push_str(&format!(
                                 "    {}\n\n",
                                 function_formatted.replace("\n", "\n    ")
                             ));
                         }
                     }
+                }
 
-                    // Add public structs
-                    for struct_unit in &self.structs {
-                        if *strategy == BankStrategy::NoTests
-                            || struct_unit.visibility == Visibility::Public
-                        {
-                            let struct_formatted = struct_unit.format(strategy, language)?;
-                            output.push_str(&format!(
-                                "    {}\n\n",
-                                struct_formatted.replace("\n", "\n    ")
-                            ));
-                        }
+                // Format all structs
+                for struct_unit in &self.structs {
+                    let struct_formatted = struct_unit.format(strategy, language)?;
+                    if !struct_formatted.is_empty() {
+                        output.push_str(&format!(
+                            "    {}\n\n",
+                            struct_formatted.replace("\n", "\n    ")
+                        ));
                     }
+                }
 
-                    // Add public traits
-                    for trait_unit in &self.traits {
-                        if *strategy == BankStrategy::NoTests
-                            || trait_unit.visibility == Visibility::Public
-                        {
-                            let trait_formatted = trait_unit.format(strategy, language)?;
-                            output.push_str(&format!(
-                                "    {}\n\n",
-                                trait_formatted.replace("\n", "\n    ")
-                            ));
-                        }
+                // Format all traits
+                for trait_unit in &self.traits {
+                    let trait_formatted = trait_unit.format(strategy, language)?;
+                    if !trait_formatted.is_empty() {
+                        output.push_str(&format!(
+                            "    {}\n\n",
+                            trait_formatted.replace("\n", "\n    ")
+                        ));
                     }
+                }
 
-                    // Add impls (only public methods)
-                    for impl_unit in &self.impls {
-                        let impl_formatted = impl_unit.format(strategy, language)?;
+                // Format all impls
+                for impl_unit in &self.impls {
+                    let impl_formatted = impl_unit.format(strategy, language)?;
+                    if !impl_formatted.is_empty() {
                         output.push_str(&format!(
                             "    {}\n\n",
                             impl_formatted.replace("\n", "\n    ")
                         ));
                     }
+                }
 
-                    // Add public submodules
-                    for submodule in &self.submodules {
-                        if *strategy == BankStrategy::NoTests
-                            || submodule.visibility == Visibility::Public
+                // Format submodules
+                for submodule in &self.submodules {
+                    let sub_formatted = submodule.format(strategy, language)?;
+                    if !sub_formatted.is_empty() {
+                        output.push_str(&format!(
+                            "    {}\n\n",
+                            sub_formatted.replace("\n", "\n    ")
+                        ));
+                    }
+                }
+
+                output.push_str("}\n");
+            }
+            BankStrategy::Summary => {
+                // Public modules only
+                if self.visibility == Visibility::Public {
+                    // Add documentation
+                    if let Some(doc) = &self.document {
+                        for line in doc.lines() {
+                            output.push_str(&format!("{} {}\n", rules.doc_marker, line));
+                        }
+                    }
+                    // Add attributes (except test attributes)
+                    for attr in &self.attributes {
+                        if !rules.test_module_markers.contains(&attr.as_str()) {
+                            output.push_str(&format!("{}\n", attr));
+                        }
+                    }
+
+                    output.push_str(&format!("pub mod {} {{\n", self.name));
+
+                    // Add declarations
+                    for decl in &self.declares {
+                        output.push_str(&format!("    {}\n", decl.source));
+                    }
+
+                    // Format public functions
+                    for function in &self.functions {
+                        if function.visibility == Visibility::Public
+                            && !rules.is_test_function(&function.attributes)
                         {
-                            let submodule_formatted = submodule.format(strategy, language)?;
+                            let function_formatted = function.format(strategy, language)?;
+                            if !function_formatted.is_empty() {
+                                output.push_str(&format!(
+                                    "    {}\n\n",
+                                    function_formatted.replace("\n", "\n    ")
+                                ));
+                            }
+                        }
+                    }
+
+                    // Format public structs
+                    for struct_unit in &self.structs {
+                        if struct_unit.visibility == Visibility::Public {
+                            let struct_formatted = struct_unit.format(strategy, language)?;
+                            if !struct_formatted.is_empty() {
+                                output.push_str(&format!(
+                                    "    {}\n\n",
+                                    struct_formatted.replace("\n", "\n    ")
+                                ));
+                            }
+                        }
+                    }
+
+                    // Format public traits
+                    for trait_unit in &self.traits {
+                        if trait_unit.visibility == Visibility::Public {
+                            let trait_formatted = trait_unit.format(strategy, language)?;
+                            if !trait_formatted.is_empty() {
+                                output.push_str(&format!(
+                                    "    {}\n\n",
+                                    trait_formatted.replace("\n", "\n    ")
+                                ));
+                            }
+                        }
+                    }
+
+                    // Format impls (showing public methods)
+                    for impl_unit in &self.impls {
+                        let impl_formatted = impl_unit.format(strategy, language)?;
+                        if !impl_formatted.is_empty() {
                             output.push_str(&format!(
                                 "    {}\n\n",
-                                submodule_formatted.replace("\n", "\n    ")
+                                impl_formatted.replace("\n", "\n    ")
                             ));
                         }
                     }
 
-                    if language == LanguageType::Rust {
-                        output.push_str(rules.function_body_end_marker);
-                        output.push('\n');
+                    // Format public submodules
+                    for submodule in &self.submodules {
+                        if submodule.visibility == Visibility::Public {
+                            let sub_formatted = submodule.format(strategy, language)?;
+                            if !sub_formatted.is_empty() {
+                                output.push_str(&format!(
+                                    "    {}\n\n",
+                                    sub_formatted.replace("\n", "\n    ")
+                                ));
+                            }
+                        }
                     }
-                } else {
-                    // Private modules not included in summary
-                    return Ok(String::new());
+
+                    output.push_str("}\n");
                 }
             }
         }
@@ -259,55 +349,71 @@ impl Formatter for FunctionUnit {
         let mut output = String::new();
         let rules = FormatterRules::for_language(language);
 
-        // Skip test functions in all modes
+        // Handle Default strategy separately: just return source
+        if *strategy == BankStrategy::Default {
+            return Ok(self.source.clone().unwrap_or_default());
+        }
+
+        // Skip test functions for NoTests and Summary
         if rules.is_test_function(&self.attributes) {
             return Ok(String::new());
         }
 
+        // Skip private functions for Summary
+        if *strategy == BankStrategy::Summary && self.visibility != Visibility::Public {
+            return Ok(String::new());
+        }
+
+        // Add documentation (for NoTests and Summary of non-test, non-private functions)
+        if let Some(doc) = &self.documentation {
+            for line in doc.lines() {
+                output.push_str(&format!("{} {}\n", rules.doc_marker, line));
+            }
+        }
+
+        // Add attributes (except test attributes)
+        for attr in &self.attributes {
+            if !rules.test_markers.contains(&attr.as_str()) {
+                output.push_str(&format!("{}\n", attr));
+            }
+        }
+
         match strategy {
-            BankStrategy::Default | BankStrategy::NoTests => {
-                // Add documentation if present
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("{} {}", rules.doc_marker, line));
-                        output.push('\n');
+            BankStrategy::Default => { /* Already handled above */ }
+            BankStrategy::NoTests => {
+                // For NoTests, append the signature and body (if available)
+                // This assumes docs/attrs were added above.
+                if let Some(sig) = &self.signature {
+                    output.push_str(sig);
+                }
+                if let Some(body) = &self.body {
+                    // Ensure space before body if signature exists and doesn't end with space
+                    if self.signature.is_some()
+                        && !output.ends_with(' ')
+                        && !body.starts_with('{')
+                        && !body.starts_with(':')
+                    {
+                        output.push(' ');
                     }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(attr);
-                    output.push('\n');
-                }
-
-                // Add function declaration and body
-                if let Some(source) = &self.source {
-                    output.push_str(source);
+                    output.push_str(body);
+                } else if self.signature.is_none() {
+                    // Fallback to source if no signature/body
+                    if let Some(src) = &self.source {
+                        output.push_str(src);
+                    }
                 }
             }
             BankStrategy::Summary => {
-                // Only include public functions for summary
-                if !matches!(self.visibility, Visibility::Public) {
-                    return Ok(String::new());
+                // For Summary, append only the formatted signature
+                // Assumes docs/attrs were added above.
+                if let Some(signature) = &self.signature {
+                    let formatted_sig = rules.format_signature(signature, Some(signature));
+                    output.push_str(&formatted_sig);
+                } else if let Some(source) = &self.source {
+                    // Fallback if no explicit signature? Format source as signature.
+                    let formatted_sig = rules.format_signature(source, None);
+                    output.push_str(&formatted_sig);
                 }
-
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("{} {}\n", rules.doc_marker, line));
-                    }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
-                // Add function signature only (no body)
-                let s = self.source.as_deref().unwrap_or("");
-                let sig = self.signature.as_deref();
-                output.push_str(&rules.format_signature(s, sig));
-                output.push('\n');
             }
         }
 
@@ -321,50 +427,66 @@ impl Formatter for StructUnit {
         let mut output = String::new();
         let rules = FormatterRules::for_language(language);
 
+        // Skip private structs for Summary
+        if *strategy == BankStrategy::Summary && self.visibility != Visibility::Public {
+            return Ok(String::new());
+        }
+
+        // Add documentation
+        if let Some(doc) = &self.documentation {
+            for line in doc.lines() {
+                output.push_str(&format!("{} {}\n", rules.doc_marker, line));
+            }
+        }
+
+        // Add attributes
+        for attr in &self.attributes {
+            output.push_str(&format!("{}\n", attr));
+        }
+
         match strategy {
-            BankStrategy::Default | BankStrategy::NoTests => {
+            BankStrategy::Default => {
                 if let Some(source) = &self.source {
                     output.push_str(source);
                 }
             }
-            BankStrategy::Summary => {
-                let public_methods: Vec<&FunctionUnit> = self
-                    .methods
-                    .iter()
-                    .filter(|m| m.visibility == Visibility::Public)
-                    .collect();
-
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("{} {}\n", rules.doc_marker, line));
-                    }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
+            BankStrategy::NoTests | BankStrategy::Summary => {
+                // Add head (struct definition line)
                 output.push_str(&self.head);
-                output.push_str(rules.function_body_start_marker);
 
-                if !public_methods.is_empty() {
-                    for method in public_methods {
-                        let method_formatted = method.format(strategy, language)?;
-                        if !method_formatted.is_empty() {
-                            output.push_str("\n    ");
-                            output.push_str(&method_formatted.replace("\n", "\n    "));
+                // Handle body/methods based on language and strategy
+                if *strategy == BankStrategy::Summary {
+                    // Summary Mode: Append ellipsis and stop
+                    output.push_str(rules.summary_ellipsis);
+                } else {
+                    // BankStrategy::NoTests
+                    // NoTests Mode: Include methods
+                    let body_start = if language == LanguageType::Python {
+                        ":\n"
+                    } else {
+                        " {\n"
+                    };
+                    let body_end = if language == LanguageType::Python {
+                        ""
+                    } else {
+                        "}"
+                    };
+                    output.push_str(body_start);
+
+                    for method in &self.methods {
+                        if !rules.is_test_function(&method.attributes) {
+                            let method_formatted = method.format(strategy, language)?;
+                            if !method_formatted.is_empty() {
+                                output.push_str("    ");
+                                output.push_str(&method_formatted.replace("\n", "\n    "));
+                                output.push('\n');
+                            }
                         }
                     }
-                    output.push_str("\n}");
+                    output.push_str(body_end);
                 }
-
-                output.push_str(rules.function_body_end_marker);
-                output.push('\n');
             }
         }
-
         Ok(output)
     }
 }
@@ -375,58 +497,53 @@ impl Formatter for TraitUnit {
         let mut output = String::new();
         let rules = FormatterRules::for_language(language);
 
+        // Skip private traits for Summary
+        if *strategy == BankStrategy::Summary && self.visibility != Visibility::Public {
+            return Ok(String::new());
+        }
+
+        // Add documentation
+        if let Some(doc) = &self.documentation {
+            for line in doc.lines() {
+                output.push_str(&format!("{} {}\n", rules.doc_marker, line));
+            }
+        }
+
+        // Add attributes
+        for attr in &self.attributes {
+            output.push_str(&format!("{}\n", attr));
+        }
+
         match strategy {
-            BankStrategy::Default | BankStrategy::NoTests => {
+            BankStrategy::Default => {
                 if let Some(source) = &self.source {
                     output.push_str(source);
                 }
             }
-            BankStrategy::Summary => {
-                // Only include public traits for Summary
-                if self.visibility != Visibility::Public {
-                    return Ok(String::new());
-                }
+            BankStrategy::NoTests | BankStrategy::Summary => {
+                let head = format!("{} trait {}", self.visibility.as_str(language), self.name);
+                output.push_str(&head);
 
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("{} {}\n", rules.doc_marker, line));
+                // Include body only for NoTests
+                if *strategy == BankStrategy::NoTests {
+                    output.push_str(" {\n");
+                    for method in &self.methods {
+                        if !rules.is_test_function(&method.attributes) {
+                            let method_formatted = method.format(strategy, language)?;
+                            if !method_formatted.is_empty() {
+                                output.push_str("    ");
+                                output.push_str(&method_formatted.replace("\n", "\n    "));
+                                output.push('\n');
+                            }
+                        }
                     }
+                    output.push_str(rules.function_body_end_marker);
+                } else {
+                    // Summary mode
+                    output.push_str(rules.summary_ellipsis);
                 }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
-                // Start trait declaration
-                match self.visibility {
-                    Visibility::Public => output.push_str(&format!("pub trait {} {{\n", self.name)),
-                    _ => output.push_str(&format!("trait {} {{\n", self.name)),
-                }
-
-                // Add method signatures
-                for method in &self.methods {
-                    // Only include public methods for Summary
-                    if method.visibility != Visibility::Public {
-                        continue;
-                    }
-
-                    let method_formatted = method.format(strategy, language)?;
-
-                    if !method_formatted.is_empty() {
-                        output.push_str("    ");
-                        output.push_str(&method_formatted.replace("\n", "\n    "));
-                        output.push('\n');
-                    }
-                }
-
-                let r = FormatterRules::for_language(language);
-                output.push_str(r.function_body_end_marker);
-                output.push('\n');
             }
         }
-
         Ok(output)
     }
 }
@@ -436,53 +553,82 @@ impl Formatter for ImplUnit {
     fn format(&self, strategy: &BankStrategy, language: LanguageType) -> Result<String> {
         let mut output = String::new();
         let rules = FormatterRules::for_language(language);
+        let is_trait_impl = self.head.contains(" for ");
+
+        // Filter methods based on strategy
+        let methods_to_include: Vec<&FunctionUnit> = match strategy {
+            BankStrategy::Default => self.methods.iter().collect(),
+            BankStrategy::NoTests => self
+                .methods
+                .iter()
+                .filter(|m| !rules.is_test_function(&m.attributes))
+                .collect(),
+            BankStrategy::Summary => {
+                if is_trait_impl {
+                    // Include all non-test methods for trait impls in Summary
+                    self.methods
+                        .iter()
+                        .filter(|m| !rules.is_test_function(&m.attributes))
+                        .collect()
+                } else {
+                    // Include only public, non-test methods for regular impls in Summary
+                    self.methods
+                        .iter()
+                        .filter(|m| {
+                            m.visibility == Visibility::Public
+                                && !rules.is_test_function(&m.attributes)
+                        })
+                        .collect()
+                }
+            }
+        };
+
+        // If no methods to include and strategy is Summary (and not trait impl), return empty
+        // Trait impls should show head even if empty
+        if methods_to_include.is_empty() && *strategy == BankStrategy::Summary && !is_trait_impl {
+            return Ok(String::new());
+        }
+
+        // Add documentation
+        if let Some(doc) = &self.documentation {
+            for line in doc.lines() {
+                output.push_str(&format!("{} {}\n", rules.doc_marker, line));
+            }
+        }
+
+        // Add attributes
+        for attr in &self.attributes {
+            output.push_str(&format!("{}\n", attr));
+        }
 
         match strategy {
-            BankStrategy::Default | BankStrategy::NoTests => {
+            BankStrategy::Default => {
                 if let Some(source) = &self.source {
                     output.push_str(source);
                 }
             }
-            BankStrategy::Summary => {
-                let methods_to_include = self
-                    .methods
-                    .iter()
-                    .filter(|m| matches!(m.visibility, Visibility::Public))
-                    .filter(|m| !m.attributes.iter().any(|attr| attr == "#[test]"))
-                    .collect::<Vec<_>>();
-
-                // If no methods to include, return an empty string
-                if methods_to_include.is_empty() {
-                    return Ok(String::new());
-                }
-
-                // Add documentation
-                if let Some(doc) = &self.documentation {
-                    for line in doc.lines() {
-                        output.push_str(&format!("{} {}\n", rules.doc_marker, line));
-                    }
-                }
-
-                // Add attributes
-                for attr in &self.attributes {
-                    output.push_str(&format!("{}\n", attr));
-                }
-
-                output.push_str(rules.function_body_start_marker);
+            BankStrategy::NoTests | BankStrategy::Summary => {
+                output.push_str(&self.head);
+                output.push_str(" {\n");
 
                 for method in methods_to_include {
-                    // Standard method formatting
-                    let method_formatted = method.format(strategy, language)?;
+                    // Determine the strategy for formatting the method itself
+                    let method_strategy = if *strategy == BankStrategy::Summary && is_trait_impl {
+                        // For Summary view of trait impls, show full method (like NoTests)
+                        // so private methods aren't filtered out by nested Summary call.
+                        &BankStrategy::NoTests
+                    } else {
+                        strategy
+                    };
+                    let method_formatted = method.format(method_strategy, language)?;
 
                     if !method_formatted.is_empty() {
-                        output.push_str("\n    ");
+                        output.push_str("    ");
                         output.push_str(&method_formatted.replace("\n", "\n    "));
+                        output.push('\n');
                     }
                 }
-
-                output.push('\n');
                 output.push_str(rules.function_body_end_marker);
-                output.push('\n');
             }
         }
 
@@ -506,53 +652,67 @@ mod tests {
             source: Some("fn test_function() { println!(\"test\"); }".to_string()),
             attributes: vec!["#[test]".to_string()],
         };
+        let expected_source = function.source.clone().unwrap();
 
-        // Test function should be skipped in Default mode
-        let result = function
+        // Default: should return full source for test functions
+        let result_default = function
             .format(&BankStrategy::Default, LanguageType::Rust)
             .unwrap();
-        assert_eq!(result, "");
+        assert_eq!(result_default, expected_source);
 
-        // Test function should be skipped in NoTests mode
-        let result = function
+        // NoTests: Test function should be skipped
+        let result_no_tests = function
             .format(&BankStrategy::NoTests, LanguageType::Rust)
             .unwrap();
-        assert_eq!(result, "");
+        assert_eq!(result_no_tests, "");
 
-        // Test function should be skipped in Summary mode
-        let result = function
+        // Summary: Test function should be skipped
+        let result_summary = function
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
-        assert_eq!(result, "");
+        assert_eq!(result_summary, "");
 
         // Regular function should be included
         let regular_function = FunctionUnit {
             name: "regular_function".to_string(),
             visibility: Visibility::Public,
             documentation: Some("Regular function documentation".to_string()),
-            signature: Some("fn regular_function()".to_string()),
-            body: Some("{ println!(\"regular\"); }".to_string()),
-            source: Some("fn regular_function() { println!(\"regular\"); }".to_string()),
+            signature: Some("pub fn regular_function() -> bool".to_string()),
+            body: Some("{ true }".to_string()),
+            source: Some("pub fn regular_function() -> bool { true }".to_string()),
             attributes: vec![],
         };
+        let regular_source = regular_function.source.clone().unwrap();
+        let regular_sig = regular_function.signature.clone().unwrap();
+        let rules = FormatterRules::for_language(LanguageType::Rust);
 
-        let result = regular_function
+        // Default: should return full source
+        let result_default_regular = regular_function
             .format(&BankStrategy::Default, LanguageType::Rust)
             .unwrap();
-        assert!(result.contains("Regular function documentation"));
-        assert!(result.contains("fn regular_function()"));
+        assert_eq!(result_default_regular, regular_source);
 
-        let result = regular_function
+        // NoTests: should return docs + attrs + signature + body
+        let result_no_tests_regular = regular_function
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
+        assert!(result_no_tests_regular.contains("Regular function documentation"));
+        assert!(result_no_tests_regular.contains("pub fn regular_function() -> bool"));
+        assert!(result_no_tests_regular.contains("{ true }"));
+
+        // Summary: should return docs + attrs + formatted signature
+        let result_summary_regular = regular_function
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
-
-        assert!(result.contains("fn regular_function()"));
-        assert!(result.contains("{ ... }"));
+        assert!(result_summary_regular.contains("Regular function documentation"));
+        assert!(result_summary_regular
+            .contains(&rules.format_signature(&regular_sig, Some(&regular_sig))));
+        assert!(!result_summary_regular.contains("{ true }")); // Should not contain body
     }
 
     #[test]
     fn test_module_unit_format() {
-        let module = ModuleUnit {
+        let test_module = ModuleUnit {
             name: "test_module".to_string(),
             visibility: Visibility::Public,
             document: Some("Test module documentation".to_string()),
@@ -567,12 +727,26 @@ mod tests {
             submodules: vec![],
             declares: vec![],
         };
+        let expected_test_source = test_module.source.clone().unwrap();
 
-        // Test module should be skipped
-        let result = module
+        // Default: should return full source for test modules
+        let result_default_test = test_module
             .format(&BankStrategy::Default, LanguageType::Rust)
             .unwrap();
-        assert_eq!(result, "");
+        assert_eq!(result_default_test, expected_test_source);
+
+        // NoTests: Test module should be processed (but inner tests skipped)
+        let result_no_tests_test = test_module
+            .format(&BankStrategy::NoTests, LanguageType::Rust)
+            .unwrap();
+        assert!(result_no_tests_test.contains("mod test_module")); // Check if module definition is present
+        assert!(result_no_tests_test.contains("#[cfg(test)]"));
+
+        // Summary: Test module should be skipped
+        let result_summary_test = test_module
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
+        assert_eq!(result_summary_test, "");
 
         let regular_module = ModuleUnit {
             name: "regular_module".to_string(),
