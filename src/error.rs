@@ -2,7 +2,29 @@ use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// Error types for the CodeBank library
+/// Error types for the CodeBank library.
+///
+/// This enum represents all possible errors that can occur in the CodeBank library.
+///
+/// # Examples
+///
+/// ```
+/// use codebank::Error;
+/// use std::path::PathBuf;
+///
+/// // Create an IO error
+/// let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+/// let error = Error::Io(io_err);
+/// assert!(matches!(error, Error::Io(_)));
+///
+/// // Create a parse error
+/// let error = Error::Parse("invalid syntax".to_string());
+/// assert!(matches!(error, Error::Parse(_)));
+///
+/// // Create a file not found error
+/// let error = Error::FileNotFound(PathBuf::from("missing.rs"));
+/// assert!(matches!(error, Error::FileNotFound(_)));
+/// ```
 #[derive(Error, Debug)]
 pub enum Error {
     /// IO error wrapper
@@ -34,5 +56,26 @@ pub enum Error {
     UnsupportedLanguage(String),
 }
 
-/// Result type alias for CodeBank operations
+/// Result type alias for CodeBank operations.
+///
+/// This type is used throughout the CodeBank library to handle operations
+/// that can fail with a [`Error`].
+///
+/// # Examples
+///
+/// ```
+/// use codebank::{Result, Error};
+/// use std::path::PathBuf;
+///
+/// fn example_operation() -> Result<String> {
+///     // Simulate a failing operation
+///     Err(Error::FileNotFound(PathBuf::from("missing.rs")))
+/// }
+///
+/// // Handle the result
+/// match example_operation() {
+///     Ok(content) => println!("Success: {}", content),
+///     Err(e) => println!("Operation failed: {}", e),
+/// }
+/// ```
 pub type Result<T> = std::result::Result<T, Error>;

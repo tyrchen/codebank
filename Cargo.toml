@@ -1,36 +1,49 @@
 [package]
 name = "codebank"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-description = "A tool to concatenate code from multiple files into a single markdown file"
-authors = ["Code Bank Authors"]
+description = """
+A powerful code documentation generator that creates structured markdown documentation from your codebase.
+Supports multiple languages including Rust, Python, TypeScript, and C with intelligent parsing and formatting.
+Features test code filtering, summary generation, and customizable documentation strategies.
+"""
+authors = ["Tyr Chen <tyr.chen@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/username/codebank"
-keywords = ["code", "documentation", "markdown", "generator"]
-categories = ["command-line-utilities", "development-tools"]
+repository = "https://github.com/tyrchen/codebank"
+documentation = "https://docs.rs/codebank"
+readme = "README.md"
+keywords = ["code", "documentation", "markdown", "generator", "parser"]
+categories = [
+  "command-line-utilities",
+  "development-tools",
+  "development-tools::documentation",
+  "parsing",
+  "text-processing",
+]
+exclude = ["fixtures/*", "examples/*", "tests/*", ".github/*", ".vscode/*"]
 
 [dependencies]
-tree-sitter = "0.23"
-tree-sitter-rust = "0.23"
-tree-sitter-python = "0.23"
-tree-sitter-c = "0.23"
-tree-sitter-typescript = "0.23"
 anyhow = "1.0"
-thiserror = "2.0"
-walkdir = "2.3"
+axum = "0.8"
 clap = { version = "4.0", features = ["derive"] }
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", features = [
   "server",
   "transport-sse-server",
   "transport-io",
 ] }
-serde = { version = "1.0", features = ["derive"] }
 schemars = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
 tokio = { version = "1.0", features = ["full"] }
 tokio-util = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-axum = "0.8"
+tree-sitter = "0.23"
+tree-sitter-c = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-rust = "0.23"
+tree-sitter-typescript = "0.23"
+walkdir = "2.3"
 
 [dev-dependencies]
 tempfile = "3.3"

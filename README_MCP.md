@@ -14,33 +14,6 @@ The binary will be in `target/release/cb_mcp`.
 
 ## Usage
 
-### Command Line Interface
-
-There are several ways to use the CodeBank MCP:
-
-#### Generate a Code Bank
-
-Generate a code bank from source code with different strategies:
-
-```bash
-# Default strategy (includes all code)
-cb_mcp generate ./src default
-
-# Summary strategy (only public interfaces will be included)
-cb_mcp generate ./src summary
-
-# No-tests strategy (all code except test cases will be included)
-cb_mcp generate ./src no-tests
-```
-
-#### Generate and Save to File
-
-Generate a code bank and save it to a specific file:
-
-```bash
-cb_mcp generate-file ./src default ./src/code.md
-```
-
 ### Running as an MCP Server
 
 #### STDIO Mode
@@ -67,8 +40,8 @@ This starts a web server that AI agents can interact with.
 
 When running in server mode, the following tools are available to AI agents:
 
-- `mcp_generate`: Generate code bank from source code
-- `mcp_generate_file`: Generate code bank and save to file
+- `gen`: Generate code bank from source code
+- `gen_file`: Generate code bank and save to file
 
 ## Strategies
 
