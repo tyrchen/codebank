@@ -23,3 +23,5 @@ Please add the support for python parser. Make sure you provide good unit test c
 Please improve formatter for example NoTest logic should allow different implementation for rust / python / etc., similar as summary for function signature only, rust is `{ ... }` python should be ` ...`, etc. I've moved formatters.rs to a mod under formatter. Please provide specific functions to @rust.rs or @python.rs . And put python formatter tests to @python.rs
 
 Please support typescript parser. Please proceed until you finished parser. Then add enough unit test to make sure things are working. Make sure all test passes and `cargo clippy` works.
+
+Now please implement cpp parser @cpp.rs using tree-sitter. Please add test cases based on @sample.cpp . Make sure all relevant grammar are properly parsed.

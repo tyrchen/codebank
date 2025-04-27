@@ -6,7 +6,7 @@ use crate::Result;
 use std::path::{Path, PathBuf};
 
 pub use formatter::Formatter;
-pub use lang::{CParser, PythonParser, RustParser, TypeScriptParser};
+pub use lang::{CppParser, PythonParser, RustParser, TypeScriptParser};
 
 /// Represents visibility levels for code elements.
 ///
