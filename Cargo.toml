@@ -1,6 +1,6 @@
 [package]
 name = "codebank"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = """
 A powerful code documentation generator that creates structured markdown documentation from your codebase.
@@ -27,7 +27,7 @@ anyhow = "1.0"
 axum = "0.8"
 clap = { version = "4.0", features = ["derive"] }
 ignore = "0.4.23"
-rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", features = [
+rmcp = { version = "0.1.5", features = [
   "server",
   "transport-sse-server",
   "transport-io",

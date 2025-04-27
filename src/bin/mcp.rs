@@ -70,26 +70,9 @@ async fn run_sse_mode(port: u16) -> anyhow::Result<()> {
         post_path: "/message".to_string(),
         // Clone the token for the config
         ct: ct_main.clone(),
-        sse_keep_alive: None,
     };
 
-    let (sse_server, router) = SseServer::new(config);
-
-    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
-
-    // Use the stored ct_main token to create the child token for graceful shutdown
-    let ct_child = ct_main.child_token();
-
-    let server = axum::serve(listener, router).with_graceful_shutdown(async move {
-        ct_child.cancelled().await;
-        tracing::info!("sse server cancelled");
-    });
-
-    tokio::spawn(async move {
-        if let Err(e) = server.await {
-            tracing::error!(error = %e, "sse server shutdown with error");
-        }
-    });
+    let sse_server = SseServer::serve_with_config(config).await?;
 
     let service_ct = sse_server.with_service(CodeBankMcp::new);
 

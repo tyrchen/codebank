@@ -8,8 +8,8 @@ CodeBank is a powerful code analysis and documentation tool that parses source c
 
 - **Multi-Language Support**:
   - Rust (fully supported with comprehensive parsing)
-  - Python (TODO)
-  - TypeScript/JavaScript (TODO)
+  - Python (fully supported with function, class, and module parsing)
+  - TypeScript/JavaScript (fully supported with function, class, interface, and export parsing)
   - C (TODO)
 
 - **Code Structure Analysis**:
@@ -79,8 +79,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Current Implementation
 
 - ✅ Comprehensive Rust parsing
-- ✅ Basic Python file parsing
-- ✅ Basic TypeScript/JavaScript file parsing
+- ✅ Comprehensive Python parsing with support for functions, classes, and modules
+- ✅ Comprehensive TypeScript/JavaScript parsing with support for functions, classes, interfaces, and exports
 - ✅ Basic C file parsing (includes/defines)
 - ✅ Markdown output generation
 - ✅ Multiple output strategies
@@ -88,8 +88,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Planned Improvements
 
 1. **Parser Enhancements**:
-   - Complete Python parser implementation
-   - Complete TypeScript parser implementation
    - Enhanced C parser with full language support
    - Support for more languages
 

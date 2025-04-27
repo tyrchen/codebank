@@ -13,7 +13,7 @@ pub struct CodeBankMcp;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GenerateRequest {
-    #[schemars(description = "Path to source code")]
+    #[schemars(description = "Path to source code. Please provide the absolute path.")]
     pub path: String,
 
     #[schemars(description = "Strategy for generation (default, summary, no-tests)")]
@@ -97,7 +97,7 @@ impl CodeBankMcp {
     }
 
     #[tool(
-        description = "Generate code bank from source files. Parses Rust, Python, TypeScript, and C files into structured markdown with configurable output strategies (default/summary/no-tests). Super useful to understand the codebase."
+        description = "Generate code bank from source files. Helps understand codebase structure, get current code status, summarize code functionality. Useful for code review, onboarding, and maintaining codebase overview."
     )]
     async fn gen(&self, #[tool(aggr)] req: GenerateRequest) -> Result<CallToolResult, McpError> {
         let path = PathBuf::from(&req.path);
@@ -143,7 +143,7 @@ impl CodeBankMcp {
     }
 
     #[tool(
-        description = "Generate code bank from source files and save to output file. Parses Rust, Python, TypeScript, and C files into structured markdown with configurable output strategies (default/summary/no-tests). Super useful for code snapshot for later reference."
+        description = "Generate code bank from source files and save to output file. Helps understand codebase structure, get current code status, summarize code functionality. Useful for code review, onboarding, and maintaining codebase overview."
     )]
     async fn gen_file(
         &self,
