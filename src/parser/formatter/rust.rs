@@ -327,9 +327,11 @@ mod tests {
             .format(&BankStrategy::NoTests, LanguageType::Rust)
             .unwrap();
 
-        // Should include both public and private methods
-        assert!(formatted.contains("fn teststruct_method()")); // public method
-        assert!(formatted.contains("fn teststruct_private_method()")); // private method
+        // Should now just return the source for NoTests mode
+        assert!(formatted.contains("struct TestStruct { field: i32 }"));
+        // Should not contain methods as we're just using the source
+        assert!(!formatted.contains("fn teststruct_method()"));
+        assert!(!formatted.contains("fn teststruct_private_method()"));
     }
 
     #[test]
@@ -533,7 +535,9 @@ mod tests {
         assert!(formatted.contains("struct PublicStruct"));
         assert!(formatted.contains("struct PrivateStruct"));
         assert!(formatted.contains("use std::collections::HashMap;"));
-        assert!(formatted.contains("fn publicstruct_private_method()"));
+
+        // We now just display struct source in NoTests, not individual methods anymore
+        assert!(!formatted.contains("fn publicstruct_private_method()"));
     }
 
     #[test]
@@ -543,11 +547,12 @@ mod tests {
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
 
-        // Summary for enums should show the full source (including variants)
+        // Summary for enums now follows the same pattern as structs
         assert!(formatted.contains("/// Docs for PublicEnum"));
         assert!(formatted.contains("pub enum PublicEnum"));
-        assert!(formatted.contains("VariantA,"));
-        assert!(formatted.contains("VariantB(String),"));
+        // No fields/variants in the enum
+        assert!(!formatted.contains("VariantA,"));
+        assert!(!formatted.contains("VariantB(String),"));
 
         let private_enum = create_test_enum("PrivateEnum", false);
         let formatted = private_enum
