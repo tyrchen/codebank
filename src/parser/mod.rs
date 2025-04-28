@@ -6,7 +6,7 @@ use crate::Result;
 use std::path::{Path, PathBuf};
 
 pub use formatter::Formatter;
-pub use lang::{CppParser, PythonParser, RustParser, TypeScriptParser};
+pub use lang::{CppParser, GoParser, PythonParser, RustParser, TypeScriptParser};
 
 /// Represents visibility levels for code elements.
 ///
@@ -72,6 +72,9 @@ pub enum Visibility {
 /// // Check C files
 /// assert!(matches!(LanguageType::Cpp, LanguageType::Cpp));
 ///
+/// // Check Go files
+/// assert!(matches!(LanguageType::Go, LanguageType::Go));
+///
 /// // Handle unknown types
 /// assert!(matches!(LanguageType::Unknown, LanguageType::Unknown));
 /// ```
@@ -85,6 +88,8 @@ pub enum LanguageType {
     TypeScript,
     /// C/C++ language
     Cpp,
+    /// Go language
+    Go,
     /// Unknown language (used for unsupported extensions)
     Unknown,
 }
@@ -401,6 +406,7 @@ impl Visibility {
             (_, LanguageType::Python) => "",
             (_, LanguageType::TypeScript) => "",
             (_, LanguageType::Cpp) => "",
+            (_, LanguageType::Go) => "",
             (_, LanguageType::Unknown) => "",
         }
     }

@@ -47,6 +47,15 @@ const C_RULES: FormatterRules = FormatterRules {
     test_module_markers: &["test_"],
 };
 
+const GO_RULES: FormatterRules = FormatterRules {
+    summary_ellipsis: " { ... }",
+    function_body_start_marker: "{",
+    function_body_end_marker: "}",
+    doc_marker: "//",
+    test_markers: &["test_"],
+    test_module_markers: &["test_"],
+};
+
 const UNKNOWN_RULES: FormatterRules = FormatterRules {
     summary_ellipsis: "...",
     function_body_start_marker: "",
@@ -64,6 +73,7 @@ impl FormatterRules {
             LanguageType::Python => PYTHON_RULES,
             LanguageType::TypeScript => TS_RULES,
             LanguageType::Cpp => C_RULES,
+            LanguageType::Go => GO_RULES,
             LanguageType::Unknown => UNKNOWN_RULES,
         }
     }

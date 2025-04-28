@@ -1,13 +1,14 @@
 use crate::{
     Bank, BankStrategy, Error, Result,
     parser::{
-        CppParser, FileUnit, LanguageParser, LanguageType, PythonParser, RustParser,
+        CppParser, FileUnit, GoParser, LanguageParser, LanguageType, PythonParser, RustParser,
         TypeScriptParser, formatter::Formatter,
     },
 };
 use ignore::Walk;
 use regex::Regex;
 use std::cell::OnceCell;
+use std::fs;
 use std::{ffi::OsStr, path::Path};
 
 #[allow(clippy::declare_interior_mutable_const)]
@@ -19,6 +20,7 @@ pub struct CodeBank {
     python_parser: PythonParser,
     typescript_parser: TypeScriptParser,
     c_parser: CppParser,
+    go_parser: GoParser,
 }
 
 impl CodeBank {
@@ -28,12 +30,14 @@ impl CodeBank {
         let python_parser = PythonParser::try_new()?;
         let typescript_parser = TypeScriptParser::try_new()?;
         let c_parser = CppParser::try_new()?;
+        let go_parser = GoParser::try_new()?;
 
         Ok(Self {
             rust_parser,
             python_parser,
             typescript_parser,
             c_parser,
+            go_parser,
         })
     }
 
@@ -44,6 +48,7 @@ impl CodeBank {
             Some("py") => Some(LanguageType::Python),
             Some("ts") | Some("tsx") | Some("js") | Some("jsx") => Some(LanguageType::TypeScript),
             Some("c") | Some("h") | Some("cpp") | Some("hpp") => Some(LanguageType::Cpp),
+            Some("go") => Some(LanguageType::Go),
             _ => None,
         }
     }
@@ -55,6 +60,7 @@ impl CodeBank {
             Some("py") => "python",
             Some("ts") | Some("tsx") | Some("js") | Some("jsx") => "typescript",
             Some("c") | Some("h") | Some("cpp") | Some("hpp") => "cpp",
+            Some("go") => "go",
             _ => "",
         }
     }
@@ -68,9 +74,45 @@ impl CodeBank {
                 self.typescript_parser.parse_file(file_path).map(Some)
             }
             Some(LanguageType::Cpp) => self.c_parser.parse_file(file_path).map(Some),
+            Some(LanguageType::Go) => self.go_parser.parse_file(file_path).map(Some),
             Some(LanguageType::Unknown) => Ok(None),
             None => Ok(None),
         }
+    }
+
+    /// Find and read the package file content by searching upwards from the root directory.
+    fn find_and_read_package_file(&self, root_dir: &Path) -> Result<Option<String>> {
+        const PACKAGE_FILES: &[&str] = &[
+            "Cargo.toml",
+            "pyproject.toml",
+            "setup.py",
+            "requirements.txt",
+            "package.json",
+            "CMakeLists.txt",
+            "Makefile",
+        ];
+        const MAX_DEPTH: usize = 3;
+
+        let mut current_dir = root_dir.to_path_buf();
+
+        for _ in 0..=MAX_DEPTH {
+            for filename in PACKAGE_FILES {
+                let package_path = current_dir.join(filename);
+                if package_path.is_file() {
+                    match fs::read_to_string(&package_path) {
+                        Ok(content) => return Ok(Some(content)),
+                        Err(e) => return Err(Error::Io(e)),
+                    }
+                }
+            }
+
+            // Move to the parent directory
+            if !current_dir.pop() {
+                break; // Reached root or couldn't go up
+            }
+        }
+
+        Ok(None) // Not found
     }
 }
 
@@ -91,6 +133,24 @@ impl Bank for CodeBank {
         // Initialize output
         let mut output = String::new();
         output.push_str("# Code Bank\n\n");
+
+        // Add package file content if found
+        match self.find_and_read_package_file(root_dir) {
+            Ok(Some(content)) => {
+                output.push_str("## Package File\n\n");
+                // Determine code block language based on filename (basic heuristic)
+                // This part might need refinement if the actual found filename is needed
+                // For now, using a generic block
+                output.push_str("```toml\n"); // Assuming TOML for Cargo.toml, adjust if needed
+                output.push_str(&content);
+                output.push_str("\n```\n\n");
+            }
+            Ok(None) => { /* No package file found, do nothing */ }
+            Err(e) => {
+                // Log or handle the error appropriately, for now just continuing
+                eprintln!("Warning: Failed to read package file: {}", e);
+            }
+        }
 
         // Clone self to make it mutable (needed for parsers)
         let mut code_bank = self.try_clone()?;
@@ -211,6 +271,10 @@ mod tests {
         let h_path = PathBuf::from("test.h");
         assert_eq!(code_bank.detect_language(&h_path), Some(LanguageType::Cpp));
 
+        // Test Go files
+        let go_path = PathBuf::from("test.go");
+        assert_eq!(code_bank.detect_language(&go_path), Some(LanguageType::Go));
+
         // Test unsupported files
         let unsupported_path = PathBuf::from("test.txt");
         assert_eq!(code_bank.detect_language(&unsupported_path), None);
@@ -235,6 +299,10 @@ mod tests {
         // Test C files
         let c_path = PathBuf::from("test.c");
         assert_eq!(code_bank.get_language_name(&c_path), "cpp");
+
+        // Test Go files
+        let go_path = PathBuf::from("test.go");
+        assert_eq!(code_bank.get_language_name(&go_path), "go");
 
         // Test unsupported files
         let unsupported_path = PathBuf::from("test.txt");
