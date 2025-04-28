@@ -225,7 +225,7 @@ impl PythonFormatter for FileUnit {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use crate::{parser::FieldUnit, *};
 
     // Helper to create a test function
     fn create_test_function(name: &str, is_public: bool, has_test_attr: bool) -> FunctionUnit {
@@ -381,17 +381,37 @@ mod tests {
     #[test]
     fn test_class_formatter_summary() {
         // Public class
-        let public_class = create_test_class("PublicClass", true);
+        let mut public_class = create_test_class("PublicClass", true);
+
+        // Add a field to the class
+        let field = FieldUnit {
+            name: "field".to_string(),
+            doc: Some("Field documentation".to_string()),
+            attributes: vec![],
+            source: Some("field = None".to_string()),
+        };
+        public_class.fields.push(field);
+
         let formatted = public_class
             .format(&BankStrategy::Summary, LanguageType::Python)
             .unwrap();
-        // Summary only shows head for classes
-        assert!(formatted.contains("class PublicClass: ..."));
-        assert!(!formatted.contains("publicclass_method")); // Methods shouldn't be in summary
-        assert!(!formatted.contains("privateclass_method"));
+
+        assert!(
+            formatted.contains("class PublicClass:"),
+            "Should include class definition"
+        );
+        assert!(formatted.contains("field = None"), "Should include fields");
+        assert!(
+            formatted.contains("def publicclass_method"),
+            "Should include public methods"
+        );
+        assert!(
+            !formatted.contains("def _publicclass_private_method"),
+            "Should not include private methods"
+        );
 
         // Private class
-        let private_class = create_test_class("PrivateClass", false);
+        let private_class = create_test_class("_PrivateClass", false);
         let formatted = private_class
             .format(&BankStrategy::Summary, LanguageType::Python)
             .unwrap();

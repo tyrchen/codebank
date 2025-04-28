@@ -4,6 +4,7 @@ use crate::parser::LanguageType;
 #[allow(dead_code)]
 pub struct FormatterRules {
     pub summary_ellipsis: &'static str,
+    pub field_sep: &'static str,
     pub function_body_start_marker: &'static str,
     pub function_body_end_marker: &'static str,
     pub doc_marker: &'static str,
@@ -13,6 +14,7 @@ pub struct FormatterRules {
 
 const RUST_RULES: FormatterRules = FormatterRules {
     summary_ellipsis: " { ... }",
+    field_sep: ",",
     function_body_start_marker: "{",
     function_body_end_marker: "}",
     doc_marker: "///",
@@ -22,6 +24,7 @@ const RUST_RULES: FormatterRules = FormatterRules {
 
 const PYTHON_RULES: FormatterRules = FormatterRules {
     summary_ellipsis: ": ...",
+    field_sep: "",
     function_body_start_marker: ":",
     function_body_end_marker: "",
     doc_marker: "#",
@@ -31,6 +34,7 @@ const PYTHON_RULES: FormatterRules = FormatterRules {
 
 const TS_RULES: FormatterRules = FormatterRules {
     summary_ellipsis: " { ... }",
+    field_sep: ",",
     function_body_start_marker: "{",
     function_body_end_marker: "}",
     doc_marker: "//",
@@ -40,6 +44,7 @@ const TS_RULES: FormatterRules = FormatterRules {
 
 const C_RULES: FormatterRules = FormatterRules {
     summary_ellipsis: " { ... }",
+    field_sep: ",",
     function_body_start_marker: "{",
     function_body_end_marker: "}",
     doc_marker: "//",
@@ -49,6 +54,7 @@ const C_RULES: FormatterRules = FormatterRules {
 
 const GO_RULES: FormatterRules = FormatterRules {
     summary_ellipsis: " { ... }",
+    field_sep: ",",
     function_body_start_marker: "{",
     function_body_end_marker: "}",
     doc_marker: "//",
@@ -58,6 +64,7 @@ const GO_RULES: FormatterRules = FormatterRules {
 
 const UNKNOWN_RULES: FormatterRules = FormatterRules {
     summary_ellipsis: "...",
+    field_sep: "",
     function_body_start_marker: "",
     function_body_end_marker: "",
     doc_marker: "//",

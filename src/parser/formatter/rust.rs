@@ -227,11 +227,44 @@ mod tests {
     #[test]
     fn test_struct_formatter_summary() {
         // Public struct
-        let public_struct = create_test_struct("PublicStruct", true);
+        let mut public_struct = create_test_struct("PublicStruct", true);
+
+        // Add a field to the struct
+        let field = FieldUnit {
+            name: "field".to_string(),
+            doc: Some("Field documentation".to_string()),
+            attributes: vec![],
+            source: Some("pub field: i32".to_string()),
+        };
+        public_struct.fields.push(field);
+
         let formatted = public_struct
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
+
         assert!(formatted.contains("struct PublicStruct"));
+        assert!(
+            formatted.contains("pub field: i32"),
+            "Summary should include fields"
+        );
+        assert!(
+            formatted.contains("fn publicstruct_method"),
+            "Summary should include public methods"
+        );
+        assert!(
+            !formatted.contains("fn publicstruct_private_method"),
+            "Summary should not include private methods"
+        );
+
+        // Private struct should be skipped
+        let private_struct = create_test_struct("PrivateStruct", false);
+        let formatted = private_struct
+            .format(&BankStrategy::Summary, LanguageType::Rust)
+            .unwrap();
+        assert!(
+            formatted.is_empty(),
+            "Private structs should be skipped in summary mode"
+        );
     }
 
     #[test]
