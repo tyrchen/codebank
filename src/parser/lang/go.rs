@@ -352,20 +352,29 @@ impl GoParser {
             .children(&mut type_spec_node.walk())
             .find(|child| child.kind() == "interface_type")
         {
-            if let Some(method_list) = interface_type
-                .children(&mut interface_type.walk())
-                .find(|child| child.kind() == "method_spec_list")
-            {
-                let mut list_cursor = method_list.walk();
-                for method_spec in method_list.children(&mut list_cursor) {
-                    // Temporarily push for *any* child to debug
+            let mut interface_cursor = interface_type.walk();
+            for child in interface_type.children(&mut interface_cursor) {
+                if child.kind() == "method_elem" {
+                    let method_spec = child; // Keep variable name for consistency
+                    let method_doc = extract_documentation(method_spec, source_code);
+                    let method_source = get_node_text(method_spec, source_code);
+                    // Method name is typically the first identifier within method_spec
+                    let method_name = get_child_node_text(method_spec, "identifier", source_code)
+                        .or_else(|| {
+                            get_child_node_text(method_spec, "field_identifier", source_code)
+                        })
+                        .unwrap_or_else(|| "unknown_interface_method".to_string());
+                    let visibility = self.determine_visibility(&method_name); // Interface methods are implicitly public
+                    // Interface methods only have signatures, no bodies
+                    let signature = method_source.clone();
+
                     methods.push(FunctionUnit {
-                        name: format!("Debug child: {}", method_spec.kind()),
-                        visibility: Visibility::Public,
-                        doc: None,
-                        source: get_node_text(method_spec, source_code),
-                        signature: None,
-                        body: None,
+                        name: method_name,
+                        visibility, // Could force Public, but determine_visibility works
+                        doc: method_doc,
+                        source: method_source,
+                        signature,
+                        body: None, // Interface methods don't have bodies
                         attributes: Vec::new(),
                     });
                 }
