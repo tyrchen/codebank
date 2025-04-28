@@ -90,6 +90,7 @@ impl CodeBank {
             "package.json",
             "CMakeLists.txt",
             "Makefile",
+            "go.mod",
         ];
         const MAX_DEPTH: usize = 3;
 
