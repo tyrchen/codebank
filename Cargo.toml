@@ -1,10 +1,10 @@
 [package]
 name = "codebank"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2024"
 description = """
 A powerful code documentation generator that creates structured markdown documentation from your codebase.
-Supports multiple languages including Rust, Python, TypeScript, and C with intelligent parsing and formatting.
+Supports multiple languages including Rust, Python, TypeScript, C, and Go with intelligent parsing and formatting.
 Features test code filtering, summary generation, and customizable documentation strategies.
 """
 authors = ["Tyr Chen <tyr.chen@gmail.com>"]
@@ -41,6 +41,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tree-sitter = "0.23"
 tree-sitter-cpp = "0.23"
+tree-sitter-go = "0.23"
 tree-sitter-python = "0.23"
 tree-sitter-rust = "0.23"
 tree-sitter-typescript = "0.23"

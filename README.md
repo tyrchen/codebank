@@ -11,6 +11,7 @@ CodeBank is a powerful code analysis and documentation tool that parses source c
   - Python (fully supported with function, class, and module parsing)
   - TypeScript/JavaScript (fully supported with function, class, interface, and export parsing)
   - C (TODO)
+  - Go (fully supported with package, function, struct, interface, and method parsing)
 
 - **Code Structure Analysis**:
   - Parses functions, modules, structs/classes, traits/interfaces

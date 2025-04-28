@@ -445,71 +445,39 @@ impl Formatter for StructUnit {
         }
 
         match strategy {
-            BankStrategy::Default => {
+            BankStrategy::Default | BankStrategy::NoTests => {
                 if let Some(source) = &self.source {
                     output.push_str(source);
                 }
             }
-            BankStrategy::NoTests | BankStrategy::Summary => {
+            BankStrategy::Summary => {
                 // Add head (struct definition line)
                 output.push_str(&self.head);
+                output.push_str(rules.function_body_start_marker);
+                output.push('\n');
 
-                // Handle body/methods based on language and strategy
-                if *strategy == BankStrategy::Summary {
-                    // Check if it looks like a Rust enum based on source or head
-                    let is_rust_enum = language == LanguageType::Rust
-                        && (self.head.contains(" enum ")
-                            || self.source.as_ref().is_some_and(|s| s.contains(" enum ")));
+                // Add all fields
+                for field in &self.fields {
+                    output.push_str(&format!(
+                        "    {}{}\n",
+                        field.source.as_deref().unwrap_or(""),
+                        rules.field_sep
+                    ));
+                }
+                output.push_str(rules.function_body_end_marker);
 
-                    if is_rust_enum {
-                        if let Some(source) = &self.source {
-                            // Construct the full enum output including docs/attrs and source
-                            let mut enum_output = String::new();
-                            if let Some(doc) = &self.doc {
-                                for line in doc.lines() {
-                                    enum_output
-                                        .push_str(&format!("{} {}\n", rules.doc_marker, line));
-                                }
-                            }
-                            for attr in &self.attributes {
-                                enum_output.push_str(&format!("{}\n", attr));
-                            }
-                            enum_output.push_str(source);
-                            return Ok(enum_output); // Return the full enum source with context
-                        } else {
-                            // Fallback if no source: just head + ellipsis
-                            output.push_str(rules.summary_ellipsis);
-                        }
-                    } else {
-                        // Default summary behavior for non-enum structs
-                        output.push_str(rules.summary_ellipsis);
-                    }
-                } else {
-                    // BankStrategy::NoTests
-                    // NoTests Mode: Include methods
-                    let body_start = if language == LanguageType::Python {
-                        ":\n"
-                    } else {
-                        " {\n"
-                    };
-                    let body_end = if language == LanguageType::Python {
-                        ""
-                    } else {
-                        "}"
-                    };
-                    output.push_str(body_start);
-
-                    for method in &self.methods {
-                        if !rules.is_test_function(&method.attributes) {
-                            let method_formatted = method.format(strategy, language)?;
-                            if !method_formatted.is_empty() {
-                                output.push_str("    ");
-                                output.push_str(&method_formatted.replace("\n", "\n    "));
-                                output.push('\n');
-                            }
+                // Add public methods
+                for method in &self.methods {
+                    if method.visibility == Visibility::Public
+                        && !rules.is_test_function(&method.attributes)
+                    {
+                        let method_formatted = method.format(strategy, language)?;
+                        if !method_formatted.is_empty() {
+                            output.push_str("    ");
+                            output.push_str(&method_formatted.replace("\n", "\n    "));
+                            output.push('\n');
                         }
                     }
-                    output.push_str(body_end);
                 }
             }
         }
