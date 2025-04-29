@@ -1,6 +1,6 @@
 [package]
 name = "codebank"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 description = """
 A powerful code documentation generator that creates structured markdown documentation from your codebase.
@@ -23,7 +23,6 @@ exclude = ["fixtures/*", "examples/*", "tests/*", ".github/*", ".vscode/*"]
 
 [dependencies]
 anyhow = "1.0"
-axum = "0.8"
 clap = { version = "4.0", features = ["derive"], optional = true }
 ignore = "0.4.23"
 regex = "1.11.1"
@@ -33,7 +32,7 @@ rmcp = { version = "0.1.5", features = [
   "transport-io",
 ], optional = true }
 schemars = { version = "0.8", optional = true }
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"], optional = true }
 thiserror = "2.0"
 tokio = { version = "1.0", features = [
   "macros",
@@ -58,7 +57,7 @@ tempfile = "3.9"
 [features]
 default = ["cli", "mcp"]
 cli = ["clap", "tracing-subscriber"]
-mcp = ["rmcp", "schemars", "tokio", "tokio-util"]
+mcp = ["rmcp", "schemars", "serde", "tokio", "tokio-util"]
 
 [[bin]]
 name = "cb"
