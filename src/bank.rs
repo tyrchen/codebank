@@ -5,7 +5,7 @@ use crate::{
         TypeScriptParser, formatter::Formatter,
     },
 };
-use ignore::Walk;
+use ignore::WalkBuilder;
 use regex::Regex;
 use std::cell::OnceCell;
 use std::fs;
@@ -161,9 +161,29 @@ impl Bank for CodeBank {
         // Use a vector to collect all file units so we can sort them
         let mut file_units = Vec::new();
 
+        // Build the directory walker, respecting ignored directories
+        let walker = WalkBuilder::new(root_dir);
+        // walker.hidden(false); // Optionally include hidden files/dirs
+        // walker.git_ignore(true); // Use .gitignore
+        // walker.ignore(true); // Use .ignore files
+
         // Walk through all files in the directory
-        for entry in Walk::new(root_dir).filter_map(|e| e.ok()) {
+        for entry in walker.build().filter_map(|e| e.ok()) {
             let path = entry.path();
+
+            // Check if the path is within any ignored directory
+            let should_ignore = config.ignore_dirs.iter().any(|ignored_dir_name| {
+                path.ancestors().any(|ancestor| {
+                    ancestor
+                        .strip_prefix(root_dir)
+                        .is_ok_and(|p| p.ends_with(ignored_dir_name))
+                })
+            });
+
+            if should_ignore {
+                continue;
+            }
+
             if path.is_file() {
                 // Try to parse the file with the appropriate parser
                 if let Ok(Some(file_unit)) = code_bank.parse_file(path) {
