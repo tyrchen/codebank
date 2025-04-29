@@ -5,7 +5,7 @@ use crate::{
         TypeScriptParser, formatter::Formatter,
     },
 };
-use ignore::Walk;
+use ignore::WalkBuilder;
 use regex::Regex;
 use std::cell::OnceCell;
 use std::fs;
@@ -49,19 +49,7 @@ impl CodeBank {
             Some("ts") | Some("tsx") | Some("js") | Some("jsx") => Some(LanguageType::TypeScript),
             Some("c") | Some("h") | Some("cpp") | Some("hpp") => Some(LanguageType::Cpp),
             Some("go") => Some(LanguageType::Go),
-            _ => None,
-        }
-    }
-
-    /// Get the language name for markdown code blocks
-    fn get_language_name(&self, path: &Path) -> &str {
-        match path.extension().and_then(OsStr::to_str) {
-            Some("rs") => "rust",
-            Some("py") => "python",
-            Some("ts") | Some("tsx") | Some("js") | Some("jsx") => "typescript",
-            Some("c") | Some("h") | Some("cpp") | Some("hpp") => "cpp",
-            Some("go") => "go",
-            _ => "",
+            _ => Some(LanguageType::Unknown),
         }
     }
 
@@ -161,9 +149,29 @@ impl Bank for CodeBank {
         // Use a vector to collect all file units so we can sort them
         let mut file_units = Vec::new();
 
+        // Build the directory walker, respecting ignored directories
+        let walker = WalkBuilder::new(root_dir);
+        // walker.hidden(false); // Optionally include hidden files/dirs
+        // walker.git_ignore(true); // Use .gitignore
+        // walker.ignore(true); // Use .ignore files
+
         // Walk through all files in the directory
-        for entry in Walk::new(root_dir).filter_map(|e| e.ok()) {
+        for entry in walker.build().filter_map(|e| e.ok()) {
             let path = entry.path();
+
+            // Check if the path is within any ignored directory
+            let should_ignore = config.ignore_dirs.iter().any(|ignored_dir_name| {
+                path.ancestors().any(|ancestor| {
+                    ancestor
+                        .strip_prefix(root_dir)
+                        .is_ok_and(|p| p.ends_with(ignored_dir_name))
+                })
+            });
+
+            if should_ignore {
+                continue;
+            }
+
             if path.is_file() {
                 // Try to parse the file with the appropriate parser
                 if let Ok(Some(file_unit)) = code_bank.parse_file(path) {
@@ -184,23 +192,23 @@ impl Bank for CodeBank {
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| file_unit.path.display().to_string());
 
-            // Add the file header
-            output.push_str(&format!("## {}\n", relative_path));
-
-            // Add the code block with appropriate language
-            let lang = code_bank.get_language_name(&file_unit.path);
-            output.push_str(&format!("```{}\n", lang));
-
             // Format the file unit using the Formatter trait
-            let formatted_content = file_unit.format(
-                &config.strategy,
-                code_bank
-                    .detect_language(&file_unit.path)
-                    .unwrap_or(LanguageType::Unknown),
-            )?;
-            output.push_str(&formatted_content);
+            let lang = code_bank
+                .detect_language(&file_unit.path)
+                .unwrap_or(LanguageType::Unknown);
+            let formatted_content = file_unit.format(&config.strategy, lang)?;
 
-            output.push_str("```\n\n");
+            if !formatted_content.is_empty() {
+                // Add the file header
+                output.push_str(&format!("## {}\n", relative_path));
+
+                // Add the code block with appropriate language
+                output.push_str(&format!("```{}\n", lang.as_str()));
+
+                output.push_str(&formatted_content);
+
+                output.push_str("```\n\n");
+            }
         }
 
         // remove all empty lines
@@ -280,7 +288,10 @@ mod tests {
 
         // Test unsupported files
         let unsupported_path = PathBuf::from("test.txt");
-        assert_eq!(code_bank.detect_language(&unsupported_path), None);
+        assert_eq!(
+            code_bank.detect_language(&unsupported_path),
+            Some(LanguageType::Unknown)
+        );
     }
 
     #[test]
@@ -289,26 +300,32 @@ mod tests {
 
         // Test Rust files
         let rust_path = PathBuf::from("test.rs");
-        assert_eq!(code_bank.get_language_name(&rust_path), "rust");
+        let lang = code_bank.detect_language(&rust_path).unwrap();
+        assert_eq!(lang.as_str(), "rust");
 
         // Test Python files
         let python_path = PathBuf::from("test.py");
-        assert_eq!(code_bank.get_language_name(&python_path), "python");
+        let lang = code_bank.detect_language(&python_path).unwrap();
+        assert_eq!(lang.as_str(), "python");
 
         // Test TypeScript files
         let ts_path = PathBuf::from("test.ts");
-        assert_eq!(code_bank.get_language_name(&ts_path), "typescript");
+        let lang = code_bank.detect_language(&ts_path).unwrap();
+        assert_eq!(lang.as_str(), "ts");
 
         // Test C files
         let c_path = PathBuf::from("test.c");
-        assert_eq!(code_bank.get_language_name(&c_path), "cpp");
+        let lang = code_bank.detect_language(&c_path).unwrap();
+        assert_eq!(lang.as_str(), "cpp");
 
         // Test Go files
         let go_path = PathBuf::from("test.go");
-        assert_eq!(code_bank.get_language_name(&go_path), "go");
+        let lang = code_bank.detect_language(&go_path).unwrap();
+        assert_eq!(lang.as_str(), "go");
 
         // Test unsupported files
         let unsupported_path = PathBuf::from("test.txt");
-        assert_eq!(code_bank.get_language_name(&unsupported_path), "");
+        let lang = code_bank.detect_language(&unsupported_path).unwrap();
+        assert_eq!(lang.as_str(), "unknown");
     }
 }

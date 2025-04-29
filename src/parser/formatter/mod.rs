@@ -249,6 +249,41 @@ impl Formatter for ModuleUnit {
             BankStrategy::Summary => {
                 // Public modules only
                 if self.visibility == Visibility::Public {
+                    let fns: Vec<&FunctionUnit> = self
+                        .functions
+                        .iter()
+                        .filter(|f| f.visibility == Visibility::Public)
+                        .collect();
+                    let structs: Vec<&StructUnit> = self
+                        .structs
+                        .iter()
+                        .filter(|s| s.visibility == Visibility::Public)
+                        .collect();
+                    let traits: Vec<&TraitUnit> = self
+                        .traits
+                        .iter()
+                        .filter(|t| t.visibility == Visibility::Public)
+                        .collect();
+                    let impls: Vec<&ImplUnit> = self
+                        .impls
+                        .iter()
+                        .filter(|i| i.methods.iter().any(|m| m.visibility == Visibility::Public))
+                        .collect();
+                    let mods: Vec<&ModuleUnit> = self
+                        .submodules
+                        .iter()
+                        .filter(|m| m.visibility == Visibility::Public)
+                        .collect();
+
+                    if fns.is_empty()
+                        && structs.is_empty()
+                        && traits.is_empty()
+                        && impls.is_empty()
+                        && mods.is_empty()
+                    {
+                        return Ok(String::new());
+                    }
+
                     // Add documentation
                     if let Some(doc) = &self.doc {
                         for line in doc.lines() {
@@ -270,10 +305,8 @@ impl Formatter for ModuleUnit {
                     }
 
                     // Format public functions
-                    for function in &self.functions {
-                        if function.visibility == Visibility::Public
-                            && !rules.is_test_function(&function.attributes)
-                        {
+                    for function in &fns {
+                        if !rules.is_test_function(&function.attributes) {
                             let function_formatted = function.format(strategy, language)?;
                             if !function_formatted.is_empty() {
                                 output.push_str(&format!(
@@ -285,33 +318,29 @@ impl Formatter for ModuleUnit {
                     }
 
                     // Format public structs
-                    for struct_unit in &self.structs {
-                        if struct_unit.visibility == Visibility::Public {
-                            let struct_formatted = struct_unit.format(strategy, language)?;
-                            if !struct_formatted.is_empty() {
-                                output.push_str(&format!(
-                                    "    {}\n\n",
-                                    struct_formatted.replace("\n", "\n    ")
-                                ));
-                            }
+                    for struct_unit in &structs {
+                        let struct_formatted = struct_unit.format(strategy, language)?;
+                        if !struct_formatted.is_empty() {
+                            output.push_str(&format!(
+                                "    {}\n\n",
+                                struct_formatted.replace("\n", "\n    ")
+                            ));
                         }
                     }
 
                     // Format public traits
-                    for trait_unit in &self.traits {
-                        if trait_unit.visibility == Visibility::Public {
-                            let trait_formatted = trait_unit.format(strategy, language)?;
-                            if !trait_formatted.is_empty() {
-                                output.push_str(&format!(
-                                    "    {}\n\n",
-                                    trait_formatted.replace("\n", "\n    ")
-                                ));
-                            }
+                    for trait_unit in &traits {
+                        let trait_formatted = trait_unit.format(strategy, language)?;
+                        if !trait_formatted.is_empty() {
+                            output.push_str(&format!(
+                                "    {}\n\n",
+                                trait_formatted.replace("\n", "\n    ")
+                            ));
                         }
                     }
 
                     // Format impls (showing public methods)
-                    for impl_unit in &self.impls {
+                    for impl_unit in &impls {
                         let impl_formatted = impl_unit.format(strategy, language)?;
                         if !impl_formatted.is_empty() {
                             output.push_str(&format!(
@@ -322,15 +351,13 @@ impl Formatter for ModuleUnit {
                     }
 
                     // Format public submodules
-                    for submodule in &self.submodules {
-                        if submodule.visibility == Visibility::Public {
-                            let sub_formatted = submodule.format(strategy, language)?;
-                            if !sub_formatted.is_empty() {
-                                output.push_str(&format!(
-                                    "    {}\n\n",
-                                    sub_formatted.replace("\n", "\n    ")
-                                ));
-                            }
+                    for submodule in &mods {
+                        let sub_formatted = submodule.format(strategy, language)?;
+                        if !sub_formatted.is_empty() {
+                            output.push_str(&format!(
+                                "    {}\n\n",
+                                sub_formatted.replace("\n", "\n    ")
+                            ));
                         }
                     }
 
@@ -760,7 +787,7 @@ mod tests {
         let result = regular_module
             .format(&BankStrategy::Summary, LanguageType::Rust)
             .unwrap();
-        assert!(result.contains("mod regular_module"));
+        assert!(!result.contains("mod regular_module"));
     }
 
     #[test]
