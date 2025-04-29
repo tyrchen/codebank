@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
-use codebank::{Bank, BankStrategy, CodeBank};
+use codebank::{Bank, BankConfig, BankStrategy, CodeBank};
 use std::fs;
 use std::path::PathBuf;
 
@@ -45,8 +45,10 @@ fn main() -> Result<()> {
         OutputStrategy::Summary => BankStrategy::Summary,
     };
 
+    let config = BankConfig::new(cli.input, strategy, vec![]);
+
     // Generate the code bank
-    let content = code_bank.generate(&cli.input, strategy)?;
+    let content = code_bank.generate(&config)?;
 
     // Output to file or stdout
     if let Some(output_file) = cli.output {
