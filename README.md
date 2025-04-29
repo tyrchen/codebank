@@ -67,7 +67,7 @@ Add CodeBank to your project's dependencies:
 
 ```toml
 [dependencies]
-codebank = "0.2.1"  # Replace with actual version
+codebank = { version = "0.4.1", default-features = false }  # Replace with actual version
 ```
 
 Then use it in your Rust code:

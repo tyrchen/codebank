@@ -1,6 +1,6 @@
 [package]
 name = "codebank"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 description = """
 A powerful code documentation generator that creates structured markdown documentation from your codebase.
@@ -24,21 +24,27 @@ exclude = ["fixtures/*", "examples/*", "tests/*", ".github/*", ".vscode/*"]
 [dependencies]
 anyhow = "1.0"
 axum = "0.8"
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.0", features = ["derive"], optional = true }
 ignore = "0.4.23"
 regex = "1.11.1"
 rmcp = { version = "0.1.5", features = [
   "server",
   "transport-sse-server",
   "transport-io",
-] }
-schemars = "0.8"
+], optional = true }
+schemars = { version = "0.8", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
-tokio = { version = "1.0", features = ["full"] }
-tokio-util = "0.7"
+tokio = { version = "1.0", features = [
+  "macros",
+  "rt-multi-thread",
+  "signal",
+], optional = true }
+tokio-util = { version = "0.7", optional = true }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+], optional = true }
 tree-sitter = "0.23"
 tree-sitter-cpp = "0.23"
 tree-sitter-go = "0.23"
@@ -49,10 +55,17 @@ tree-sitter-typescript = "0.23"
 [dev-dependencies]
 tempfile = "3.9"
 
+[features]
+default = ["cli", "mcp"]
+cli = ["clap", "tracing-subscriber"]
+mcp = ["rmcp", "schemars", "tokio", "tokio-util"]
+
 [[bin]]
 name = "cb"
 path = "src/bin/codebank.rs"
+required-features = ["cli"]
 
 [[bin]]
 name = "cb-mcp"
 path = "src/bin/mcp.rs"
+required-features = ["cli", "mcp"]
