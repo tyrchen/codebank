@@ -127,6 +127,7 @@ mod parser;
 #[cfg(feature = "mcp")]
 mod mcp;
 
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub use bank::CodeBank;
@@ -137,6 +138,7 @@ pub use parser::*;
 pub use mcp::CodeBankMcp;
 
 /// Configuration for generating code bank documentation.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct BankConfig {
     /// Root directory to generate code bank for.
     pub root_dir: PathBuf,
@@ -164,7 +166,7 @@ pub struct BankConfig {
 /// // Use Summary strategy for public interface only
 /// let strategy = BankStrategy::Summary;
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum BankStrategy {
     /// Generate the full code bank for the given directory using default settings.
     /// This includes all code elements with their complete implementations.
