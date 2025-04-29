@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use codebank::mcp::CodeBankMcp;
+use codebank::CodeBankMcp;
 use rmcp::{
     ServiceExt,
     transport::{SseServer, sse_server::SseServerConfig, stdio},

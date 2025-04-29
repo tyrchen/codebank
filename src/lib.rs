@@ -122,14 +122,19 @@
 
 mod bank;
 mod error;
-pub mod mcp;
 mod parser;
+
+#[cfg(feature = "mcp")]
+mod mcp;
 
 use std::path::Path;
 
 pub use bank::CodeBank;
 pub use error::{Error, Result};
 pub use parser::*;
+
+#[cfg(feature = "mcp")]
+pub use mcp::CodeBankMcp;
 
 /// Strategy for generating code bank documentation.
 ///
