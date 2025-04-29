@@ -1,4 +1,4 @@
-use crate::{Bank, BankStrategy, CodeBank};
+use crate::{Bank, BankConfig, BankStrategy, CodeBank};
 use anyhow::Result;
 use rmcp::{
     Error as McpError, ServerHandler,
@@ -98,7 +98,8 @@ impl CodeBankMcp {
             }
         };
 
-        let content = match codebank.generate(&path, bank_strategy) {
+        let config = BankConfig::new(path, bank_strategy, vec![]);
+        let content = match codebank.generate(&config) {
             Ok(content) => content,
             Err(e) => {
                 return Err(internal_error(format!(
@@ -148,7 +149,8 @@ impl CodeBankMcp {
             }
         };
 
-        let content = match codebank.generate(&path, bank_strategy) {
+        let config = BankConfig::new(path, bank_strategy, vec![]);
+        let content = match codebank.generate(&config) {
             Ok(content) => content,
             Err(e) => {
                 return Err(internal_error(format!(

@@ -17,7 +17,7 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use codebank::{Bank, BankStrategy, CodeBank, Result};
+//! use codebank::{Bank, BankConfig, BankStrategy, CodeBank, Result};
 //! use std::path::Path;
 //!
 //! fn main() -> Result<()> {
@@ -25,10 +25,8 @@
 //!     let code_bank = CodeBank::try_new()?;
 //!
 //!     // Generate documentation for your source directory
-//!     let content = code_bank.generate(
-//!         Path::new("src"),
-//!         BankStrategy::Default
-//!     )?;
+//!     let config = BankConfig::new(Path::new("src"), BankStrategy::Default, vec![]);
+//!     let content = code_bank.generate(&config)?;
 //!
 //!     println!("Generated documentation:\n{}", content);
 //!     Ok(())
@@ -42,12 +40,13 @@
 //! The default strategy includes all code elements with their complete implementations:
 //!
 //! ```rust
-//! use codebank::{Bank, BankStrategy, CodeBank, Result};
+//! use codebank::{Bank, BankConfig, BankStrategy, CodeBank, Result};
 //! use std::path::Path;
 //!
 //! # fn main() -> Result<()> {
 //! let code_bank = CodeBank::try_new()?;
-//! let content = code_bank.generate(Path::new("src"), BankStrategy::Default)?;
+//! let config = BankConfig::new(Path::new("src"), BankStrategy::Default, vec![]);
+//! let content = code_bank.generate(&config)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -57,12 +56,13 @@
 //! Exclude test-related code for cleaner documentation:
 //!
 //! ```rust
-//! use codebank::{Bank, BankStrategy, CodeBank, Result};
+//! use codebank::{Bank, BankConfig, BankStrategy, CodeBank, Result};
 //! use std::path::Path;
 //!
 //! # fn main() -> Result<()> {
 //! let code_bank = CodeBank::try_new()?;
-//! let content = code_bank.generate(Path::new("src"), BankStrategy::NoTests)?;
+//! let config = BankConfig::new(Path::new("src"), BankStrategy::NoTests, vec![]);
+//! let content = code_bank.generate(&config)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -72,12 +72,13 @@
 //! Generate documentation for public interfaces only:
 //!
 //! ```rust
-//! use codebank::{Bank, BankStrategy, CodeBank, Result};
+//! use codebank::{Bank, BankConfig, BankStrategy, CodeBank, Result};
 //! use std::path::Path;
 //!
 //! # fn main() -> Result<()> {
 //! let code_bank = CodeBank::try_new()?;
-//! let content = code_bank.generate(Path::new("src"), BankStrategy::Summary)?;
+//! let config = BankConfig::new(Path::new("src"), BankStrategy::Summary, vec![]);
+//! let content = code_bank.generate(&config)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -87,13 +88,13 @@
 //! You can implement the `Bank` trait for your own code bank generator:
 //!
 //! ```rust
-//! use codebank::{Bank, BankStrategy, Result};
+//! use codebank::{Bank, BankConfig, BankStrategy, Result};
 //! use std::path::Path;
 //!
 //! struct MyCodeBank;
 //!
 //! impl Bank for MyCodeBank {
-//!     fn generate(&self, root_dir: &Path, strategy: BankStrategy) -> Result<String> {
+//!     fn generate(&self, config: &BankConfig) -> Result<String> {
 //!         // Your implementation here
 //!         Ok("# Code Bank\n\nCustom implementation".to_string())
 //!     }
@@ -105,13 +106,12 @@
 //! The crate uses a custom `Result` type that wraps common error cases:
 //!
 //! ```rust
-//! use codebank::{Bank, BankStrategy, CodeBank, Result, Error};
+//! use codebank::{Bank, BankConfig, BankStrategy, CodeBank, Result, Error};
 //!
 //! # fn main() -> Result<()> {
-//! let result = CodeBank::try_new()?.generate(
-//!     std::path::Path::new("nonexistent"),
-//!     BankStrategy::Default
-//! );
+//! let code_bank = CodeBank::try_new()?;
+//! let config = BankConfig::new(std::path::Path::new("nonexistent"), BankStrategy::Default, vec![]);
+//! let result = code_bank.generate(&config);
 //!
 //! if let Err(err) = result {
 //!     eprintln!("Failed to generate documentation: {}", err);
@@ -127,7 +127,8 @@ mod parser;
 #[cfg(feature = "mcp")]
 mod mcp;
 
-use std::path::Path;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub use bank::CodeBank;
 pub use error::{Error, Result};
@@ -135,6 +136,17 @@ pub use parser::*;
 
 #[cfg(feature = "mcp")]
 pub use mcp::CodeBankMcp;
+
+/// Configuration for generating code bank documentation.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct BankConfig {
+    /// Root directory to generate code bank for.
+    pub root_dir: PathBuf,
+    /// Strategy for generating code bank documentation.
+    pub strategy: BankStrategy,
+    /// Directories to ignore.
+    pub ignore_dirs: Vec<String>,
+}
 
 /// Strategy for generating code bank documentation.
 ///
@@ -154,7 +166,7 @@ pub use mcp::CodeBankMcp;
 /// // Use Summary strategy for public interface only
 /// let strategy = BankStrategy::Summary;
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum BankStrategy {
     /// Generate the full code bank for the given directory using default settings.
     /// This includes all code elements with their complete implementations.
@@ -162,17 +174,15 @@ pub enum BankStrategy {
     /// # Examples
     ///
     /// ```
-    /// use codebank::{Bank, BankStrategy, CodeBank};
+    /// use codebank::{Bank, BankConfig, BankStrategy, CodeBank};
     /// use std::path::Path;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let code_bank = CodeBank::try_new()?;
     ///
     /// // Generate complete documentation
-    /// let content = code_bank.generate(
-    ///     Path::new("src"),  // Use your source directory
-    ///     BankStrategy::Default
-    /// )?;
+    /// let config = BankConfig::new(Path::new("src"), BankStrategy::Default, vec![]);
+    /// let content = code_bank.generate(&config)?;
     ///
     /// assert!(content.contains("# Code Bank"));
     /// # Ok(())
@@ -187,17 +197,15 @@ pub enum BankStrategy {
     /// # Examples
     ///
     /// ```
-    /// use codebank::{Bank, BankStrategy, CodeBank, Result};
+    /// use codebank::{Bank, BankConfig, BankStrategy, CodeBank, Result};
     /// use std::path::Path;
     ///
     /// # fn main() -> Result<()> {
     /// let code_bank = CodeBank::try_new()?;
     ///
     /// // Generate documentation excluding tests
-    /// let content = code_bank.generate(
-    ///     Path::new("src"),  // Use your source directory
-    ///     BankStrategy::NoTests
-    /// )?;
+    /// let config = BankConfig::new(Path::new("src"), BankStrategy::NoTests, vec![]);
+    /// let content = code_bank.generate(&config)?;
     ///
     /// // Content should not contain test-related code
     /// let lines = content.lines().collect::<Vec<_>>();
@@ -215,17 +223,15 @@ pub enum BankStrategy {
     /// # Examples
     ///
     /// ```
-    /// use codebank::{Bank, BankStrategy, CodeBank};
+    /// use codebank::{Bank, BankConfig, BankStrategy, CodeBank};
     /// use std::path::Path;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let code_bank = CodeBank::try_new()?;
     ///
     /// // Generate public interface summary
-    /// let content = code_bank.generate(
-    ///     Path::new("src"),  // Use your source directory
-    ///     BankStrategy::Summary
-    /// )?;
+    /// let config = BankConfig::new(Path::new("src"), BankStrategy::Summary, vec![]);
+    /// let content = code_bank.generate(&config)?;
     ///
     /// // Content should contain function signatures but not implementations
     /// assert!(content.contains("{ ... }"));
@@ -244,7 +250,7 @@ pub enum BankStrategy {
 /// # Examples
 ///
 /// ```
-/// use codebank::{Bank, BankStrategy, CodeBank};
+/// use codebank::{Bank, BankConfig, BankStrategy, CodeBank};
 /// use std::path::Path;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -252,10 +258,8 @@ pub enum BankStrategy {
 /// let code_bank = CodeBank::try_new()?;
 ///
 /// // Generate documentation using the Bank trait
-/// let content = code_bank.generate(
-///     Path::new("src"),  // Use your source directory
-///     BankStrategy::Default
-/// )?;
+/// let config = BankConfig::new(Path::new("src"), BankStrategy::Default, vec![]);
+/// let content = code_bank.generate(&config)?;
 ///
 /// // The generated content should be markdown
 /// assert!(content.starts_with("# Code Bank"));
@@ -268,13 +272,13 @@ pub enum BankStrategy {
 /// You can implement this trait for your own code bank generator:
 ///
 /// ```
-/// use codebank::{Bank, BankStrategy, Result};
+/// use codebank::{Bank, BankConfig, BankStrategy, Result};
 /// use std::path::Path;
 ///
 /// struct MyCodeBank;
 ///
 /// impl Bank for MyCodeBank {
-///     fn generate(&self, root_dir: &Path, strategy: BankStrategy) -> Result<String> {
+///     fn generate(&self, config: &BankConfig) -> Result<String> {
 ///         // Your implementation here
 ///         Ok("# Code Bank\n\nCustom implementation".to_string())
 ///     }
@@ -282,7 +286,8 @@ pub enum BankStrategy {
 ///
 /// # fn main() -> Result<()> {
 /// let my_bank = MyCodeBank;
-/// let content = my_bank.generate(Path::new("."), BankStrategy::Default)?;
+/// let config = BankConfig::new(Path::new("."), BankStrategy::Default, vec![]);
+/// let content = my_bank.generate(&config)?;
 /// assert!(content.starts_with("# Code Bank"));
 /// # Ok(())
 /// # }
@@ -311,21 +316,33 @@ pub trait Bank {
     /// # Examples
     ///
     /// ```
-    /// use codebank::{Bank, BankStrategy, CodeBank};
+    /// use codebank::{Bank, BankConfig, BankStrategy, CodeBank};
     /// use std::path::Path;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let code_bank = CodeBank::try_new()?;
     ///
     /// // Generate documentation for the src directory
-    /// let content = code_bank.generate(
-    ///     Path::new("src"),
-    ///     BankStrategy::Default
-    /// )?;
+    /// let config = BankConfig::new(Path::new("src"), BankStrategy::Default, vec![]);
+    /// let content = code_bank.generate(&config)?;
     ///
     /// println!("Generated documentation:\n{}", content);
     /// # Ok(())
     /// # }
     /// ```
-    fn generate(&self, root_dir: &Path, strategy: BankStrategy) -> Result<String>;
+    fn generate(&self, config: &BankConfig) -> Result<String>;
+}
+
+impl BankConfig {
+    pub fn new(
+        root_dir: impl Into<PathBuf>,
+        strategy: BankStrategy,
+        ignore_dirs: Vec<String>,
+    ) -> Self {
+        Self {
+            root_dir: root_dir.into(),
+            strategy,
+            ignore_dirs,
+        }
+    }
 }

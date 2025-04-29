@@ -1,5 +1,5 @@
 use crate::{
-    Bank, BankStrategy, Error, Result,
+    Bank, BankConfig, Error, Result,
     parser::{
         CppParser, FileUnit, GoParser, LanguageParser, LanguageType, PythonParser, RustParser,
         TypeScriptParser, formatter::Formatter,
@@ -118,7 +118,9 @@ impl CodeBank {
 }
 
 impl Bank for CodeBank {
-    fn generate(&self, root_dir: &Path, strategy: BankStrategy) -> Result<String> {
+    fn generate(&self, config: &BankConfig) -> Result<String> {
+        let root_dir = &config.root_dir;
+
         // Make sure the root directory exists
         if !root_dir.exists() {
             return Err(Error::DirectoryNotFound(root_dir.to_path_buf()));
@@ -191,7 +193,7 @@ impl Bank for CodeBank {
 
             // Format the file unit using the Formatter trait
             let formatted_content = file_unit.format(
-                &strategy,
+                &config.strategy,
                 code_bank
                     .detect_language(&file_unit.path)
                     .unwrap_or(LanguageType::Unknown),
