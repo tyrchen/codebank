@@ -13,6 +13,7 @@ alwaysApply: false
 - Use rustdoc style comments to document public items.
 - Don't leave blank lines within a function.
 - Follow Rust's ownership and borrowing rules.
+- Always run `cargo test` and `cargo clippy` after finished coding and fix any issues on those commands.
 
 ## Nomenclature
 

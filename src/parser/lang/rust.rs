@@ -23,8 +23,11 @@ fn extract_attributes(node: Node, source_code: &str) -> Vec<String> {
                 attributes.insert(0, attr_text);
             }
             current_node = prev; // Continue looking further back
+        } else if prev.kind() == "line_comment" || prev.kind() == "block_comment" {
+            // Skip comment nodes and continue searching
+            current_node = prev;
         } else {
-            // Stop if we hit a non-attribute item
+            // Stop if we hit any other non-attribute, non-comment item
             break;
         }
     }
@@ -135,10 +138,7 @@ impl RustParser {
                     if comment.starts_with("///") {
                         let cleaned = comment.trim_start_matches("///").trim().to_string();
                         doc_comments.insert(0, cleaned);
-                    } else {
-                        // Stop if it's a non-doc line comment
-                        break;
-                    }
+                    } // else: it's a non-doc line comment, ignore and continue searching backward
                 }
             } else if kind == "block_comment" {
                 if let Some(comment) = get_node_text(prev, source_code) {
@@ -153,10 +153,7 @@ impl RustParser {
                                 }
                             }
                         }
-                    } else {
-                        // Stop if it's a non-doc block comment
-                        break;
-                    }
+                    } // else: it's a non-doc block comment, ignore and continue searching backward
                 }
             } else if kind != "attribute_item" {
                 // Stop if it's not a comment or attribute
@@ -310,6 +307,40 @@ impl RustParser {
         // Parse enum head using the helper, passing visibility by reference
         let head = self.parse_item_head(node, source_code, "enum", &visibility, &name);
 
+        let mut fields = Vec::new();
+        // Find the enum body (enum_variant_list)
+        if let Some(body_node) = node
+            .children(&mut node.walk())
+            .find(|child| child.kind() == "enum_variant_list")
+        {
+            for variant_node in body_node.children(&mut body_node.walk()) {
+                if variant_node.kind() == "enum_variant" {
+                    let variant_name = get_child_node_text(variant_node, "identifier", source_code)
+                        .unwrap_or_default();
+                    let variant_documentation =
+                        self.extract_documentation(variant_node, source_code);
+                    let variant_attributes = extract_attributes(variant_node, source_code);
+                    let variant_source = get_node_text(variant_node, source_code);
+
+                    // Trim trailing comma from the source if present
+                    let final_variant_source = variant_source.map(|s| {
+                        if s.ends_with(',') {
+                            s[..s.len() - 1].to_string()
+                        } else {
+                            s
+                        }
+                    });
+
+                    fields.push(FieldUnit {
+                        name: variant_name,
+                        doc: variant_documentation,
+                        attributes: variant_attributes,
+                        source: final_variant_source, // Use the trimmed source
+                    });
+                }
+            }
+        }
+
         let struct_unit = StructUnit {
             name,
             head,
@@ -317,7 +348,7 @@ impl RustParser {
             doc: documentation,
             source,
             attributes,
-            fields: Vec::new(), // Added fields initialization
+            fields, // Populated with variants
             methods: Vec::new(),
         };
 
@@ -827,5 +858,102 @@ mod tests {
                 .unwrap()
                 .contains("_private_field: i32")
         );
+    }
+
+    #[test]
+    fn test_parse_enum_with_variants() {
+        let file_unit = parse_fixture("sample_enum.rs").unwrap();
+
+        // Find PublicEnum
+        let public_enum = file_unit
+            .structs // Enums are parsed as structs
+            .iter()
+            .find(|s| s.name == "PublicEnum")
+            .expect("PublicEnum not found");
+
+        assert_eq!(public_enum.visibility, Visibility::Public);
+        assert!(public_enum.doc.is_some());
+        assert!(
+            public_enum
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("public enum with documentation")
+        );
+        assert_eq!(public_enum.attributes.len(), 1);
+        assert_eq!(public_enum.attributes[0], "#[derive(Debug)]");
+        assert_eq!(public_enum.head, "pub enum PublicEnum");
+
+        // Check if variants were parsed as fields
+        assert!(
+            !public_enum.fields.is_empty(),
+            "Variants should be parsed as fields for PublicEnum"
+        );
+        assert_eq!(public_enum.fields.len(), 3, "Expected 3 variants");
+
+        // Check details of the first variant (Variant1)
+        let variant1 = public_enum
+            .fields
+            .iter()
+            .find(|f| f.name == "Variant1")
+            .expect("Variant1 not found");
+
+        assert!(variant1.doc.is_some());
+        assert!(
+            variant1
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Variant documentation")
+        );
+        assert!(variant1.attributes.is_empty());
+        // Source should NOT have trailing comma
+        assert_eq!(variant1.source.as_ref().unwrap(), "Variant1");
+
+        // Check details of the second variant (Variant2)
+        let variant2 = public_enum
+            .fields
+            .iter()
+            .find(|f| f.name == "Variant2")
+            .expect("Variant2 not found");
+
+        assert!(
+            variant2
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Another variant documentation")
+        );
+        assert!(!variant2.attributes.is_empty());
+        assert_eq!(variant2.attributes[0], "#[allow(dead_code)]");
+        // Source should NOT have trailing comma
+        assert_eq!(variant2.source.as_ref().unwrap(), "Variant2(String)");
+
+        // Check details of the third variant (Variant3)
+        let variant3 = public_enum
+            .fields
+            .iter()
+            .find(|f| f.name == "Variant3")
+            .expect("Variant3 not found");
+
+        assert!(
+            variant3
+                .doc
+                .as_ref()
+                .unwrap()
+                .contains("Yet another variant documentation")
+        );
+        assert!(variant3.attributes.is_empty());
+        // Source should NOT have trailing comma
+        assert_eq!(variant3.source.as_ref().unwrap(), "Variant3 { field: i32 }");
+
+        // Check that PrivateEnum was also parsed (as a struct)
+        let private_enum = file_unit
+            .structs
+            .iter()
+            .find(|s| s.name == "PrivateEnum")
+            .expect("PrivateEnum not found");
+        assert_eq!(private_enum.visibility, Visibility::Private);
+        assert_eq!(private_enum.fields.len(), 1); // Should have one variant
     }
 }
