@@ -411,3 +411,16 @@ impl Visibility {
         }
     }
 }
+
+impl LanguageType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            LanguageType::Rust => "rust",
+            LanguageType::Python => "python",
+            LanguageType::TypeScript => "ts",
+            LanguageType::Cpp => "cpp",
+            LanguageType::Go => "go",
+            LanguageType::Unknown => "unknown",
+        }
+    }
+}
