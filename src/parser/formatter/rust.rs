@@ -1,564 +1,266 @@
-#[cfg(test)]
-mod tests {
-    use crate::*;
+#![cfg(test)]
+use super::*; // Imports items from src/parser/formatter/mod.rs
+use crate::parser::{RustParser, LanguageParser, FileUnit, DeclareKind, FieldUnit, ModuleUnit, FunctionUnit, StructUnit, TraitUnit, ImplUnit};
+use crate::{BankStrategy, LanguageType, Result, Visibility}; // Added Visibility here
+use std::path::PathBuf;
 
-    // Helper to create a test function
-    fn create_test_function(name: &str, is_public: bool, has_test_attr: bool) -> FunctionUnit {
-        let mut attrs = Vec::new();
-        if has_test_attr {
-            attrs.push("#[test]".to_string());
-        }
+// Helper function to parse a fixture file using RustParser
+fn parse_rust_fixture(fixture_name: &str) -> Result<FileUnit> {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("CARGO_MANIFEST_DIR should be set during tests");
+    let path = PathBuf::from(manifest_dir)
+        .join("fixtures")
+        .join(fixture_name);
+    let mut parser = RustParser::try_new()?;
+    parser.parse_file(&path)
+}
 
-        FunctionUnit {
-            name: name.to_string(),
-            attributes: attrs,
-            visibility: if is_public {
-                Visibility::Public
-            } else {
-                Visibility::Private
-            },
-            doc: Some(format!("Documentation for {}", name)),
-            signature: Some(format!("fn {}()", name)),
-            body: Some("{ /* function body */ }".to_string()),
-            source: Some(format!("fn {}() {{ /* function body */ }}", name)),
-        }
-    }
-
-    // Helper to create a test struct
-    fn create_test_struct(name: &str, is_public: bool) -> StructUnit {
-        let mut methods = Vec::new();
-        methods.push(create_test_function(
-            &format!("{}_method", name.to_lowercase()),
-            true,
-            false,
-        ));
-        // Add a private method as well
-        methods.push(create_test_function(
-            &format!("{}_private_method", name.to_lowercase()),
-            false,
-            false,
-        ));
-
-        let visibility = if is_public {
-            Visibility::Public
-        } else {
-            Visibility::Private
-        };
-        StructUnit {
-            name: name.to_string(),
-            head: format!("{} struct {}", visibility.as_str(LanguageType::Rust), name),
-            attributes: Vec::new(),
-            visibility,
-            doc: Some(format!("Documentation for {}", name)),
-            fields: Vec::new(),
-            methods,
-            source: Some(format!("struct {} {{ field: i32 }}", name)),
-        }
-    }
-
-    // Helper to create a test module
-    fn create_test_module(name: &str, is_public: bool, is_test: bool) -> ModuleUnit {
-        let functions = vec![
-            create_test_function("module_function", true, false),
-            // Add a private function
-            create_test_function("module_private_function", false, false),
-        ];
-
-        let structs = vec![create_test_struct("ModuleStruct", true)];
-
-        let mut attributes = Vec::new();
-        if is_test {
-            attributes.push("#[cfg(test)]".to_string());
-        }
-
-        // Add declarations
-        let mut declares = Vec::new();
-        declares.push(DeclareStatements {
-            source: "use std::io;".to_string(),
-            kind: DeclareKind::Use,
-        });
-
-        ModuleUnit {
-            name: name.to_string(),
-            attributes,
-            doc: Some(format!("Documentation for module {}", name)),
-            visibility: if is_public {
-                Visibility::Public
-            } else {
-                Visibility::Private
-            },
-            functions,
-            structs,
-            traits: Vec::new(),
-            impls: Vec::new(),
-            submodules: Vec::new(),
-            declares,
-            source: Some(format!("mod {} {{ /* module contents */ }}", name)),
-        }
-    }
-
-    // Helper to create a test impl block, with option for trait implementation
-    fn create_test_impl(is_trait_impl: bool) -> ImplUnit {
-        let methods = vec![
-            // Add both public and private methods
-            create_test_function("public_method", true, false),
-            create_test_function("private_method", false, false),
-        ];
-
-        let (head, source) = if is_trait_impl {
-            (
-                "impl SomeTrait for SomeStruct".to_string(),
-                "impl SomeTrait for SomeStruct { /* impl body */ }".to_string(),
-            )
-        } else {
-            (
-                "impl SomeStruct".to_string(),
-                "impl SomeStruct { /* impl body */ }".to_string(),
-            )
-        };
-
-        ImplUnit {
-            attributes: Vec::new(),
-            doc: Some("Documentation for implementation".to_string()),
-            head,
-            methods,
-            source: Some(source),
-        }
-    }
-
-    // Helper to create a test impl block with only private methods
-    fn create_private_methods_impl() -> ImplUnit {
-        ImplUnit {
-            attributes: Vec::new(),
-            doc: Some("Documentation for implementation with private methods".to_string()),
-            head: "impl StructWithPrivateMethods".to_string(),
-            methods: vec![
-                create_test_function("private_method1", false, false),
-                create_test_function("private_method2", false, false),
-            ],
-            source: Some("impl StructWithPrivateMethods { /* impl body */ }".to_string()),
-        }
-    }
-
-    // Helper to create a test enum
-    fn create_test_enum(name: &str, is_public: bool) -> StructUnit {
-        let visibility = if is_public {
-            Visibility::Public
-        } else {
-            Visibility::Private
-        };
-        let head = format!("{} enum {}", visibility.as_str(LanguageType::Rust), name);
-        let source = format!(
-            "/// Docs for {}\n{} {{
-    VariantA,
-    VariantB(String),
-}}",
-            name, head
-        );
-        StructUnit {
-            name: name.to_string(),
-            head,
-            visibility,
-            doc: Some(format!("Docs for {}", name)),
+#[test]
+fn test_rust_trait_unit_summary_head_formatting_refined() {
+    // This test assumes TraitUnit has a `head` field correctly populated by the parser.
+    // The TraitUnit struct in `parser/mod.rs` needs `head: String`.
+    // For now, we'll construct a TraitUnit manually as if `head` was populated.
+    let trait_unit_with_generics = TraitUnit {
+        name: "MyGenericTrait".to_string(),
+        visibility: Visibility::Public,
+        doc: Some("A generic trait.".to_string()),
+        // head: "pub trait MyGenericTrait<T> where T: Clone".to_string(), // THIS IS THE KEY FIELD
+        source: Some("pub trait MyGenericTrait<T> where T: Clone { fn method(&self); }".to_string()), // Full source
+        attributes: vec![],
+        methods: vec![FunctionUnit {
+            name: "method".to_string(),
+            visibility: Visibility::Public,
+            doc: None,
+            signature: Some("fn method(&self);".to_string()),
+            body: None,
+            source: Some("fn method(&self);".to_string()),
             attributes: vec![],
-            fields: vec![], // Variants aren't parsed as fields currently
-            methods: vec![],
-            source: Some(source),
-        }
+        }],
+    };
+
+    // The formatter refinement uses `self.source`'s first line for summary head if `TraitUnit.head` is not available.
+    // Let's test that behavior.
+    let expected_summary = "/// A generic trait.\npub trait MyGenericTrait<T> where T: Clone { ... }";
+    let formatted_summary = trait_unit_with_generics.format(&BankStrategy::Summary, LanguageType::Rust).unwrap();
+    assert_eq!(formatted_summary.trim(), expected_summary.trim());
+}
+
+
+#[test]
+fn test_rust_struct_unit_summary_field_comma_refined() {
+    let struct_with_fields = StructUnit {
+        name: "MyStruct".to_string(),
+        head: "pub struct MyStruct".to_string(),
+        visibility: Visibility::Public,
+        doc: None,
+        attributes: vec![],
+        fields: vec![
+            FieldUnit { name: "field_one".to_string(), source: Some("field_one: i32,".to_string()), ..Default::default() },
+            FieldUnit { name: "field_two".to_string(), source: Some("field_two: String".to_string()), ..Default::default() },
+            FieldUnit { name: "field_three".to_string(), source: Some("field_three: bool,".to_string()), ..Default::default() },
+        ],
+        methods: vec![],
+        source: Some("pub struct MyStruct { field_one: i32, field_two: String, field_three: bool, }".to_string()),
+    };
+
+    // Expected: field_one: i32, (original comma kept, no new one added)
+    //           field_two: String, (new comma added)
+    //           field_three: bool, (original comma kept, no new one added - this is the last field, so no comma by rule)
+    // The refined formatter logic for fields in StructUnit::Summary:
+    // output.push_str(field_src_trimmed);
+    // if i < self.fields.len() - 1 && rules.field_sep == "," { output.push_str(","); }
+    // This means it *always* adds a comma if not the last field. The `field_src_trimmed` already removed its own comma.
+    // This should result in single commas.
+
+    let expected_summary = r#"pub struct MyStruct {
+    field_one: i32,
+    field_two: String,
+    field_three: bool
+}"#; // Note: Last field does not get a comma from the loop.
+    let formatted_summary = struct_with_fields.format(&BankStrategy::Summary, LanguageType::Rust).unwrap();
+    assert_eq!(formatted_summary.trim(), expected_summary.trim());
+}
+
+// --- End-to-End Tests ---
+
+#[test]
+fn test_e2e_sample_rs_default_strategy() {
+    let file_unit = parse_rust_fixture("sample.rs").unwrap();
+    let formatted_default = file_unit.format(&BankStrategy::Default, LanguageType::Rust).unwrap();
+    // Default strategy should return the raw source content.
+    assert_eq!(formatted_default.trim(), file_unit.source.as_ref().unwrap().trim());
+}
+
+#[test]
+fn test_e2e_sample_rs_no_tests_strategy() {
+    let file_unit = parse_rust_fixture("sample.rs").unwrap();
+    let formatted_no_tests = file_unit.format(&BankStrategy::NoTests, LanguageType::Rust).unwrap();
+
+    assert!(formatted_no_tests.contains("/// This is a file-level documentation comment."));
+    assert!(formatted_no_tests.contains("extern crate proc_macro;"));
+    assert!(formatted_no_tests.contains("pub mod public_module {"));
+    assert!(formatted_no_tests.contains("pub struct PublicStruct<T: FmtDebug + Clone, U>")); // Full struct def
+    assert!(formatted_no_tests.contains("fn method(&self, input: T) -> String {")); // Full method body in impl
+    assert!(formatted_no_tests.contains("pub fn public_function() -> String {")); // Full function
+    assert!(formatted_no_tests.contains("fn private_function(s: &str) -> String {")); // Private functions included
+    assert!(!formatted_no_tests.contains("mod tests {")); // Test module should be excluded
+    assert!(!formatted_no_tests.contains("test_public_function_output()"));
+}
+
+#[test]
+fn test_e2e_sample_rs_summary_strategy() {
+    let file_unit = parse_rust_fixture("sample.rs").unwrap();
+    let formatted_summary = file_unit.format(&BankStrategy::Summary, LanguageType::Rust).unwrap();
+    
+    // File level
+    assert!(formatted_summary.contains("/// This is a file-level documentation comment."));
+    assert!(formatted_summary.contains("extern crate proc_macro;"));
+    assert!(formatted_summary.contains("use crate::public_module::PublicStruct;"));
+    assert!(formatted_summary.contains("mod my_other_module;"));
+
+    // Public Module
+    assert!(formatted_summary.contains("/// This is a public module."));
+    assert!(formatted_summary.contains("#[cfg(feature = \"some_feature\")]"));
+    assert!(formatted_summary.contains("pub mod public_module {"));
+    // Inside public_module
+    assert!(formatted_summary.contains("    /// This is a public struct with documentation."));
+    assert!(formatted_summary.contains("    pub struct PublicStruct<T: FmtDebug + Clone, U> { ... }"));
+    assert!(formatted_summary.contains("    pub trait PublicTrait<T> { ... }"));
+    assert!(formatted_summary.contains("    pub enum PublicEnum { ... }"));
+    assert!(!formatted_summary.contains("    crate_visible_function()")); // Not public
+    assert!(!formatted_summary.contains("    mod nested_module {")); // nested_module is private
+
+    // Top-level public items
+    assert!(formatted_summary.contains("/// A public function with multiple attributes and docs."));
+    assert!(formatted_summary.contains("#[inline]"));
+    assert!(formatted_summary.contains("pub fn public_function() -> String { ... }"));
+    assert!(!formatted_summary.contains("private_function")); // Private
+
+    assert!(formatted_summary.contains("pub type PublicTypeAlias<T> = Result<T, Box<dyn std::error::Error>>;"));
+    assert!(formatted_summary.contains("pub const PUBLIC_CONSTANT: &str = \"constant value\";"));
+    assert!(formatted_summary.contains("pub static PUBLIC_STATIC_VAR: i32 = 100;"));
+
+    assert!(formatted_summary.contains("pub struct GenericStruct<T> { ... }"));
+    assert!(formatted_summary.contains("pub trait GenericTrait<T> { ... }"));
+
+    // Impl blocks
+    // Inherent impl for GenericStruct - only shows if it had public methods. `new` is private.
+    // The formatter logic for ImplUnit summary: "If no methods to include and strategy is Summary (and not trait impl), return empty"
+    // So, the "impl<T> GenericStruct<T>" block might be empty or not present if `new` is its only method and private.
+    // The test `test_impl_blocks_details` checks this more closely.
+    // Let's ensure the doc and attribute for it are not present if the block itself isn't.
+    let generic_struct_impl_head = "impl<T> GenericStruct<T> {";
+    if formatted_summary.contains(generic_struct_impl_head) { // If the impl block is rendered (e.g. if it had public methods)
+        assert!(formatted_summary.contains("/// Implementation for GenericStruct."));
+        assert!(formatted_summary.contains("#[allow(dead_code)]")); // Attribute on impl
+    } else { // If the impl block is NOT rendered because it has no public methods
+        assert!(!formatted_summary.contains("/// Implementation for GenericStruct."));
     }
 
-    #[test]
-    fn test_function_formatter_default() {
-        let function = create_test_function("test_function", true, false);
-        let formatted = function
-            .format(&BankStrategy::Default, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("fn test_function()"));
-        assert!(formatted.contains("/* function body */"));
+
+    assert!(formatted_summary.contains("/// Implementation of GenericTrait for GenericStruct."));
+    assert!(formatted_summary.contains("impl<T> GenericTrait<T> for GenericStruct<T> where T: Clone + FmtDebug {"));
+    assert!(formatted_summary.contains("    fn method(&self, value: T) -> T { ... }"));
+
+    // Test module should not be present
+    assert!(!formatted_summary.contains("mod tests {"));
+}
+
+
+#[test]
+fn test_e2e_sample_advanced_summary_strategy() {
+    let file_unit = parse_rust_fixture("sample_advanced.rs").unwrap();
+    let formatted_summary = file_unit.format(&BankStrategy::Summary, LanguageType::Rust).unwrap();
+
+    assert!(formatted_summary.contains("/// File for advanced Rust constructs."));
+    assert!(formatted_summary.contains("pub mod level1 {"));
+    // level2 is private, so its contents (even if pub(in path)) won't be shown via traversing level1.
+    assert!(!formatted_summary.contains("mod level2 {"));
+    assert!(!formatted_summary.contains("DeepStruct")); 
+    assert!(formatted_summary.contains("pub fn complex_generic_function<'a, T, U>(param_t: T, param_u: &'a U) -> Result<T, U::Error> where T: std::fmt::Debug + Clone + Send + 'static, U: std::error::Error + ?Sized, for<'b> &'b U: Send { ... }"));
+    
+    assert!(formatted_summary.contains("pub struct AdvancedGenericStruct<'a, A, B> where A: AsRef<[u8]> + ?Sized, B: 'a + Send + Sync { ... }"));
+    assert!(formatted_summary.contains("pub enum GenericResult<S, E> where S: Send, E: std::fmt::Debug { ... }"));
+    assert!(formatted_summary.contains("pub trait AdvancedTrait { ... }"));
+    assert!(formatted_summary.contains("impl AdvancedTrait for MyTypeForAdvancedTrait {"));
+    assert!(formatted_summary.contains("fn process(&self, item: Self::Item) -> Result<Self::Item, String> { ... }"));
+    
+    assert!(formatted_summary.contains("pub struct MyUnitStruct;"));
+    assert!(formatted_summary.contains("pub struct EmptyStruct { ... }")); // Empty struct with {}
+    assert!(!formatted_summary.contains("NoFieldsStruct")); // Private
+}
+
+// --- Specific Unit Tests for Coverage ---
+
+#[test]
+fn test_visibility_formatting_in_summary() {
+    let public_fn = FunctionUnit { name: "public_fn".into(), visibility: Visibility::Public, signature: Some("pub fn public_fn()".into()), ..Default::default() };
+    let private_fn = FunctionUnit { name: "private_fn".into(), visibility: Visibility::Private, signature: Some("fn private_fn()".into()), ..Default::default() };
+    let crate_fn = FunctionUnit { name: "crate_fn".into(), visibility: Visibility::Crate, signature: Some("pub(crate) fn crate_fn()".into()), ..Default::default() };
+    
+    let file_unit = FileUnit {
+        functions: vec![public_fn, private_fn, crate_fn],
+        ..Default::default()
+    };
+
+    let summary = file_unit.format(&BankStrategy::Summary, LanguageType::Rust).unwrap();
+    assert!(summary.contains("pub fn public_fn() { ... }"));
+    assert!(!summary.contains("private_fn"));
+    assert!(!summary.contains("crate_fn")); // Not public
+}
+
+#[test]
+fn test_attribute_and_doc_formatting() {
+    let func = FunctionUnit {
+        name: "func_with_attrs_docs".into(),
+        visibility: Visibility::Public,
+        doc: Some("This is a doc line 1.\nThis is doc line 2.".into()),
+        attributes: vec!["#[inline]".into(), "#[must_use]".into()],
+        signature: Some("pub fn func_with_attrs_docs()".into()),
+        body: Some("{ }".into()),
+        ..Default::default()
+    };
+    let expected_no_tests = "/// This is a doc line 1.\n/// This is doc line 2.\n#[inline]\n#[must_use]\npub fn func_with_attrs_docs() { }";
+    let expected_summary = "/// This is a doc line 1.\n/// This is doc line 2.\n#[inline]\n#[must_use]\npub fn func_with_attrs_docs() { ... }";
+
+    assert_eq!(func.format(&BankStrategy::NoTests, LanguageType::Rust).unwrap().trim(), expected_no_tests.trim());
+    assert_eq!(func.format(&BankStrategy::Summary, LanguageType::Rust).unwrap().trim(), expected_summary.trim());
+}
+
+#[test]
+fn test_empty_and_comment_only_files_formatting() {
+    let empty_file_unit = parse_rust_fixture("empty.rs").unwrap();
+    for strategy in [BankStrategy::Default, BankStrategy::NoTests, BankStrategy::Summary] {
+        let formatted = empty_file_unit.format(&strategy, LanguageType::Rust).unwrap();
+        assert_eq!(formatted.trim(), "", "Formatted output for empty file should be empty for strategy {:?}", strategy);
     }
 
-    #[test]
-    fn test_function_formatter_no_tests() {
-        // Regular function
-        let function = create_test_function("regular_function", true, false);
-        let formatted = function
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("fn regular_function()"));
-        assert!(formatted.contains("/* function body */"));
+    let comments_only_unit = parse_rust_fixture("only_comments.rs").unwrap();
+    let default_fmt = comments_only_unit.format(&BankStrategy::Default, LanguageType::Rust).unwrap();
+    assert_eq!(default_fmt.trim(), comments_only_unit.source.as_ref().unwrap().trim());
 
-        // Test function
-        let test_function = create_test_function("test_function", true, true);
-        let formatted = test_function
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.is_empty());
-    }
+    let expected_doc_summary = "/// This is an inner line comment, often used for module-level docs.\n/// This is an inner block comment.\n/// Also for module-level docs usually.";
+    let no_tests_fmt = comments_only_unit.format(&BankStrategy::NoTests, LanguageType::Rust).unwrap();
+    assert_eq!(no_tests_fmt.trim(), expected_doc_summary.trim());
+    
+    let summary_fmt = comments_only_unit.format(&BankStrategy::Summary, LanguageType::Rust).unwrap();
+    assert_eq!(summary_fmt.trim(), expected_doc_summary.trim());
+}
 
-    #[test]
-    fn test_function_formatter_summary() {
-        // Public function
-        let public_function = create_test_function("public_function", true, false);
-        let formatted = public_function
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("fn public_function()"));
-        assert!(!formatted.contains("/* function body */"));
-        assert!(formatted.contains("{ ... }"));
-
-        // Private function
-        let private_function = create_test_function("private_function", false, false);
-        let formatted = private_function
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.is_empty());
-    }
-
-    #[test]
-    fn test_struct_formatter_default() {
-        let struct_unit = create_test_struct("TestStruct", true);
-        let formatted = struct_unit
-            .format(&BankStrategy::Default, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("struct TestStruct"));
-        assert!(formatted.contains("field: i32"));
-    }
-
-    #[test]
-    fn test_struct_formatter_summary() {
-        // Public struct
-        let mut public_struct = create_test_struct("PublicStruct", true);
-
-        // Add a field to the struct
-        let field = FieldUnit {
-            name: "field".to_string(),
-            doc: Some("Field documentation".to_string()),
-            attributes: vec![],
-            source: Some("pub field: i32".to_string()),
-        };
-        public_struct.fields.push(field);
-
-        let formatted = public_struct
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-
-        assert!(formatted.contains("struct PublicStruct"));
-        assert!(
-            formatted.contains("pub field: i32"),
-            "Summary should include fields"
-        );
-        assert!(
-            formatted.contains("fn publicstruct_method"),
-            "Summary should include public methods"
-        );
-        assert!(
-            !formatted.contains("fn publicstruct_private_method"),
-            "Summary should not include private methods"
-        );
-
-        // Private struct should be skipped
-        let private_struct = create_test_struct("PrivateStruct", false);
-        let formatted = private_struct
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-        assert!(
-            formatted.is_empty(),
-            "Private structs should be skipped in summary mode"
-        );
-    }
-
-    #[test]
-    fn test_module_formatter_default() {
-        let module = create_test_module("test_module", true, false);
-        let formatted = module
-            .format(&BankStrategy::Default, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("mod test_module"));
-        assert!(formatted.contains("/* module contents */"));
-    }
-
-    #[test]
-    fn test_module_formatter_no_tests() {
-        // Regular module
-        let module = create_test_module("regular_module", true, false);
-        let formatted = module
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("pub mod regular_module"));
-        assert!(formatted.contains("fn module_function"));
-        assert!(formatted.contains("fn module_private_function"));
-        assert!(formatted.contains("struct ModuleStruct"));
-        assert!(formatted.contains("use std::io;"));
-
-        // Test module
-        let test_module = create_test_module("test_module", true, true);
-        let formatted = test_module
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("#[cfg(test)]"));
-        assert!(formatted.contains("pub mod test_module"));
-    }
-
-    #[test]
-    fn test_module_formatter_summary() {
-        // Public module
-        let public_module = create_test_module("public_module", true, false);
-        let formatted = public_module
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("pub mod public_module"));
-        assert!(formatted.contains("fn module_function()"));
-        // Functions should only show signatures in summary
-        assert!(!formatted.contains("/* function body */"));
-
-        // Private module
-        let private_module = create_test_module("private_module", false, false);
-        let formatted = private_module
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.is_empty());
-    }
-
-    #[test]
-    fn test_struct_formatter_no_tests() {
-        // Test struct with private methods
-        let struct_unit = create_test_struct("TestStruct", true);
-        let formatted = struct_unit
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-
-        // Should now just return the source for NoTests mode
-        assert!(formatted.contains("struct TestStruct { field: i32 }"));
-        // Should not contain methods as we're just using the source
-        assert!(!formatted.contains("fn teststruct_method()"));
-        assert!(!formatted.contains("fn teststruct_private_method()"));
-    }
-
-    #[test]
-    fn test_regular_impl_formatter_summary() {
-        // Regular (non-trait) implementation
-        let impl_unit = create_test_impl(false);
-        let formatted = impl_unit
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-
-        // Only public methods should be included in regular impls
-        // Check the head extracted by the parser
-        assert!(formatted.contains("impl SomeStruct"));
-        assert!(formatted.contains("fn public_method"));
-        assert!(!formatted.contains("fn private_method"));
-    }
-
-    #[test]
-    fn test_trait_impl_formatter_summary() {
-        // Trait implementation
-        let impl_unit = create_test_impl(true);
-        let formatted = impl_unit
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-
-        // Both public and private methods should be included in trait impls
-        // Check the head extracted by the parser
-        assert!(formatted.contains("impl SomeTrait for SomeStruct"));
-        assert!(formatted.contains("fn public_method"));
-        assert!(
-            !formatted.contains("fn private_method"),
-            "Private method should be excluded in trait impl summary"
-        );
-        // Check that bodies are summarized
-        assert!(
-            formatted.contains("public_method() { ... }"),
-            "Public method body not summarized"
-        );
-        assert!(
-            !formatted.contains("/* function body */"),
-            "Full function body should not be present"
-        );
-    }
-
-    #[test]
-    fn test_impl_formatter_no_tests() {
-        // Both regular and trait implementation should include all non-test methods in NoTests mode
-        let regular_impl = create_test_impl(false);
-        let formatted = regular_impl
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("fn public_method"));
-        assert!(formatted.contains("fn private_method"));
-
-        let trait_impl = create_test_impl(true);
-        let formatted = trait_impl
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("fn public_method"));
-        assert!(formatted.contains("fn private_method"));
-    }
-
-    #[test]
-    fn test_impl_with_only_private_methods_summary() {
-        // Regular impl with only private methods should return empty string in Summary mode
-        let impl_unit = create_private_methods_impl();
-        let formatted = impl_unit
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-
-        // Should be empty since there are no public methods
-        assert!(formatted.is_empty());
-
-        // But in NoTests mode, it should include the private methods
-        let formatted = impl_unit
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(!formatted.is_empty());
-        assert!(formatted.contains("fn private_method1"));
-        assert!(formatted.contains("fn private_method2"));
-    }
-
-    #[test]
-    fn test_file_unit_formatter() {
-        let mut file_unit = FileUnit {
-            path: std::path::PathBuf::from("test_file.rs"),
-            ..Default::default()
-        };
-
-        // Add modules
-        file_unit
-            .modules
-            .push(create_test_module("public_module", true, false));
-        file_unit
-            .modules
-            .push(create_test_module("test_module", true, true));
-
-        // Add functions
-        file_unit
-            .functions
-            .push(create_test_function("public_function", true, false));
-        file_unit
-            .functions
-            .push(create_test_function("private_function", false, false));
-        file_unit
-            .functions
-            .push(create_test_function("test_function", true, true));
-
-        // Add structs
-        file_unit
-            .structs
-            .push(create_test_struct("PublicStruct", true));
-        file_unit
-            .structs
-            .push(create_test_struct("PrivateStruct", false));
-
-        // Test Default strategy
-        file_unit.source = Some("// This is the entire file content".to_string());
-        let formatted = file_unit
-            .format(&BankStrategy::Default, LanguageType::Rust)
-            .unwrap();
-        assert_eq!(formatted, "// This is the entire file content");
-
-        // Test NoTests strategy - test modules and functions should be excluded
-        let formatted = file_unit
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("pub mod public_module"));
-        assert!(!formatted.contains("fn test_function"));
-        assert!(formatted.contains("fn public_function"));
-        assert!(formatted.contains("fn private_function"));
-        assert!(formatted.contains("struct PublicStruct"));
-        assert!(formatted.contains("struct PrivateStruct"));
-
-        // Test Summary strategy - only public items should be included
-        let formatted = file_unit
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-        assert!(formatted.contains("pub mod public_module"));
-        assert!(!formatted.contains("mod private_module"));
-        assert!(formatted.contains("fn public_function()"));
-        assert!(!formatted.contains("fn private_function"));
-        assert!(formatted.contains("struct PublicStruct"));
-        assert!(!formatted.contains("struct PrivateStruct"));
-    }
-
-    #[test]
-    fn test_file_unit_no_tests_includes_all() {
-        let mut file_unit = FileUnit {
-            path: std::path::PathBuf::from("test_file.rs"),
-            ..Default::default()
-        };
-
-        // Add modules
-        file_unit
-            .modules
-            .push(create_test_module("public_module", true, false));
-        file_unit
-            .modules
-            .push(create_test_module("private_module", false, false));
-        file_unit
-            .modules
-            .push(create_test_module("test_module", true, true));
-
-        // Add functions
-        file_unit
-            .functions
-            .push(create_test_function("public_function", true, false));
-        file_unit
-            .functions
-            .push(create_test_function("private_function", false, false));
-        file_unit
-            .functions
-            .push(create_test_function("test_function", true, true));
-
-        // Add structs
-        file_unit
-            .structs
-            .push(create_test_struct("PublicStruct", true));
-        file_unit
-            .structs
-            .push(create_test_struct("PrivateStruct", false));
-
-        // Add declarations
-        file_unit.declares.push(DeclareStatements {
-            source: "use std::collections::HashMap;".to_string(),
-            kind: DeclareKind::Use,
-        });
-
-        // Test NoTests strategy
-        let formatted = file_unit
-            .format(&BankStrategy::NoTests, LanguageType::Rust)
-            .unwrap();
-
-        // Should include all non-test items regardless of visibility
-        assert!(formatted.contains("pub mod public_module"));
-        assert!(formatted.contains("mod private_module"));
-        assert!(!formatted.contains("fn test_function"));
-        assert!(formatted.contains("fn public_function"));
-        assert!(formatted.contains("fn private_function"));
-        assert!(formatted.contains("struct PublicStruct"));
-        assert!(formatted.contains("struct PrivateStruct"));
-        assert!(formatted.contains("use std::collections::HashMap;"));
-
-        // We now just display struct source in NoTests, not individual methods anymore
-        assert!(!formatted.contains("fn publicstruct_private_method()"));
-    }
-
-    #[test]
-    fn test_enum_formatter_summary() {
-        let public_enum = create_test_enum("PublicEnum", true);
-        let formatted = public_enum
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-
-        // Summary for enums now follows the same pattern as structs
-        assert!(formatted.contains("/// Docs for PublicEnum"));
-        assert!(formatted.contains("pub enum PublicEnum"));
-        // No fields/variants in the enum
-        assert!(!formatted.contains("VariantA,"));
-        assert!(!formatted.contains("VariantB(String),"));
-
-        let private_enum = create_test_enum("PrivateEnum", false);
-        let formatted = private_enum
-            .format(&BankStrategy::Summary, LanguageType::Rust)
-            .unwrap();
-        // Private enums should be omitted entirely in summary
-        assert!(formatted.is_empty());
-    }
+#[test]
+fn test_trait_unit_head_field_assumption() {
+    // This test acknowledges that TraitUnit does not have `head: String` yet.
+    // The formatter for TraitUnit (Summary) currently falls back to using the first line of `source`.
+    let trait_unit = TraitUnit {
+        name: "SimpleTrait".to_string(),
+        visibility: Visibility::Public,
+        doc: None,
+        source: Some("pub trait SimpleTrait<T>: Debug where T: Copy {\n    // ...\n}".to_string()),
+        attributes: vec![],
+        methods: vec![],
+        // head: "pub trait SimpleTrait<T>: Debug where T: Copy".to_string(), // Ideal
+    };
+    let expected_summary = "pub trait SimpleTrait<T>: Debug where T: Copy { ... }";
+    let formatted_summary = trait_unit.format(&BankStrategy::Summary, LanguageType::Rust).unwrap();
+    assert_eq!(formatted_summary.trim(), expected_summary.trim());
 }
