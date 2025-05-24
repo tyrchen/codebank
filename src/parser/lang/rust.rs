@@ -149,7 +149,7 @@ fn get_node_text(node: Node, source_code: &str) -> Option<String> {
 impl RustParser {
     pub fn try_new() -> Result<Self> {
         let mut parser = Parser::new();
-        let language = tree_sitter_rust::LANGUAGE;
+        let language = tree_sitter_rust::language();
         parser.set_language(&language.into()).map_err(|e| Error::TreeSitter(e.to_string()))?;
         Ok(Self { parser })
     }
@@ -213,7 +213,8 @@ impl RustParser {
             return_type_text_opt = Self::get_capture_text_from_match(query_match, "return_type", source_code, &query);
             body_text = Self::get_capture_text_from_match(query_match, "body", source_code, &query);
             for cap in query_match.captures { if query.capture_names()[cap.index as usize] == "attribute_node" { if let Some(attr_txt)=get_node_text(cap.node, source_code){ if !attributes.contains(&attr_txt) { attributes.push(attr_txt);}}}}
-            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}}
+            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}
+        }
         
         let parameters_text = parameters_text_opt.unwrap_or_default();
         let return_type_text = return_type_text_opt.unwrap_or_default();
@@ -249,7 +250,7 @@ impl RustParser {
             if let Some(n_text) = Self::get_capture_text_from_match(query_match, "name", source_code, &query) { name = n_text; }
             body_node_opt = Self::get_capture_node_from_match(query_match, "body", &query);
             for cap in query_match.captures { if query.capture_names()[cap.index as usize] == "attribute_node" { if let Some(attr_txt)=get_node_text(cap.node, source_code){ if !attributes.contains(&attr_txt) { attributes.push(attr_txt);}}}}
-            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}}
+            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}
         } else { 
             name = get_child_node_text(node, "identifier", source_code).unwrap_or_else(||"unknown".to_string());
             if node.child_by_field_name("body").is_none() { body_node_opt = None; } 
@@ -292,7 +293,7 @@ impl RustParser {
             let generics_text = Self::get_capture_text_from_match(query_match, "generics", source_code, &query).unwrap_or_default();
             enum_variant_list_node = Self::get_capture_node_from_match(query_match, "variants", &query);
             for cap in query_match.captures { if query.capture_names()[cap.index as usize] == "attribute_node" { if let Some(attr_txt)=get_node_text(cap.node, source_code){ if !attributes.contains(&attr_txt) { attributes.push(attr_txt);}}}}
-            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}}
+            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}
             let vis_str = visibility.as_str(LanguageType::Rust);
             head_str = if vis_str.is_empty() { format!("enum {}{}", name, generics_text) } else { format!("{} enum {}{}", vis_str, name, generics_text) };
         } else {
@@ -330,7 +331,7 @@ impl RustParser {
             let generics_text = Self::get_capture_text_from_match(query_match, "generics", source_code, &query).unwrap_or_default();
             field_declaration_list_node = Self::get_capture_node_from_match(query_match, "fields", &query);
             for cap in query_match.captures { if query.capture_names()[cap.index as usize] == "attribute_node" { if let Some(attr_txt)=get_node_text(cap.node, source_code){ if !attributes.contains(&attr_txt) { attributes.push(attr_txt);}}}}
-            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}}
+            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text)=get_node_text(vis_node,source_code){ visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}
             let vis_str = visibility.as_str(LanguageType::Rust);
             head_str = if vis_str.is_empty() { format!("struct {}{}", name, generics_text) } else { format!("{} struct {}{}", vis_str, name, generics_text) };
             if field_declaration_list_node.is_none() && full_source.as_deref().map_or(false, |s| s.trim_end().ends_with(';')) { head_str.push(';'); }
@@ -369,7 +370,7 @@ impl RustParser {
             let generics_text = Self::get_capture_text_from_match(query_match, "generics", source_code, &query).unwrap_or_default();
             body_node_opt = Self::get_capture_node_from_match(query_match, "body", &query);
             for cap in query_match.captures { let cap_name = &query.capture_names()[cap.index as usize]; if *cap_name == "attribute_node" { if let Some(attr_txt) = get_node_text(cap.node, source_code) { if !attributes.contains(&attr_txt) { attributes.push(attr_txt); }}}}
-            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text) = get_node_text(vis_node, source_code) { visibility = Visibility::from_str(&vis_text, LanguageType::Rust); }}}
+            if visibility == Visibility::Private { if let Some(vis_node) = Self::get_capture_node_from_match(query_match, "visibility_node", &query) { if let Some(vis_text) = get_node_text(vis_node, source_code) { visibility = Visibility::from_str(&vis_text, LanguageType::Rust);}}}
             let vis_str = visibility.as_str(LanguageType::Rust);
             head_str = if vis_str.is_empty() { format!("trait {}{}", name, generics_text) } else { format!("{} trait {}{}", vis_str, name, generics_text) };
         } else {

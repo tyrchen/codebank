@@ -12,7 +12,7 @@ use tree_sitter::{Node, Parser};
 impl TypeScriptParser {
     pub fn try_new() -> Result<Self> {
         let mut parser = Parser::new();
-        let language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT;
+        let language = tree_sitter_typescript::language_typescript();
         parser
             .set_language(&language.into())
             .map_err(|e| Error::TreeSitter(e.to_string()))?;

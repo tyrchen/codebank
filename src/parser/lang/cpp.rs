@@ -10,7 +10,7 @@ use tree_sitter::{Node, Parser};
 impl CppParser {
     pub fn try_new() -> Result<Self> {
         let mut parser = Parser::new();
-        let language = tree_sitter_cpp::LANGUAGE;
+        let language = tree_sitter_cpp::language();
         parser
             .set_language(&language.into())
             .map_err(|e| Error::TreeSitter(e.to_string()))?;

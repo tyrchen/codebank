@@ -53,6 +53,41 @@ pub enum Visibility {
     Restricted(String),
 }
 
+impl Visibility {
+    /// Parses a string representation of visibility into a `Visibility` enum variant.
+    ///
+    /// This function is primarily designed for Rust's visibility keywords.
+    /// The `_lang` parameter is currently unused but is included for potential future
+    /// expansion to other languages with different visibility syntaxes.
+    ///
+    /// # Arguments
+    ///
+    /// * `s`: A string slice representing the visibility keyword (e.g., "pub", "pub(crate)").
+    /// * `_lang`: The language type (currently ignored, assumed Rust).
+    ///
+    /// # Returns
+    ///
+    /// Returns the corresponding `Visibility` variant. Defaults to `Visibility::Private`
+    /// if the string does not match known Rust visibility specifiers.
+    pub fn from_str(s: &str, _lang: LanguageType) -> Self {
+        match s {
+            "pub" => Visibility::Public,
+            "pub(crate)" => Visibility::Crate,
+            restricted_str if restricted_str.starts_with("pub(") && restricted_str.ends_with(')') => {
+                // Extract content between "pub(" and ")"
+                // e.g., "pub(in crate::some::path)" -> "in crate::some::path"
+                // e.g., "pub(super)" -> "super"
+                let content = restricted_str
+                    .trim_start_matches("pub(")
+                    .trim_end_matches(')')
+                    .to_string();
+                Visibility::Restricted(content)
+            }
+            _ => Visibility::Private, // Default for non-recognized or empty strings
+        }
+    }
+}
+
 /// The language type supported by the parser.
 ///
 /// # Examples
@@ -370,6 +405,9 @@ pub struct TraitUnit {
 
     /// The documentation for the trait
     pub doc: Option<String>,
+
+    /// The trait head, e.g. `trait MyTrait<T>: OtherTrait`
+    pub head: String,
 
     /// The methods declared in the trait
     pub methods: Vec<FunctionUnit>,

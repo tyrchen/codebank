@@ -25,7 +25,7 @@ fn get_child_node_text<'a>(node: Node<'a>, kind: &str, source_code: &'a str) -> 
 impl PythonParser {
     pub fn try_new() -> Result<Self> {
         let mut parser = Parser::new();
-        let language = tree_sitter_python::LANGUAGE;
+        let language = tree_sitter_python::language();
         parser
             .set_language(&language.into())
             .map_err(|e| Error::TreeSitter(e.to_string()))?;
